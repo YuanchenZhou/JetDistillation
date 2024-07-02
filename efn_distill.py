@@ -30,6 +30,8 @@ from energyflow.utils import data_split, remap_pids, to_categorical
 # Plotting imports
 import matplotlib.pyplot as plt
 
+import time
+
 ###########
 
 # Function borrowed from Rikab
@@ -52,12 +54,53 @@ def efn_input_converter(model_efn, shape=None, num_global_features=0):
 # https://keras.io/examples/vision/knowledge_distillation/
 # Adapted to PFN
 
+class PredictionTimeHistory(tf.keras.callbacks.Callback):
+    def on_predict_begin(self, logs=None):
+        self.times = []
+        self.total_time = 0
+    def on_predict_batch_begin(self, batch, logs=None):
+        self.batch_start_time = time.perf_counter()
+    def on_predict_batch_end(self, batch, logs=None):
+        self.batch_end_time = time.perf_counter()
+        batch_time = self.batch_end_time - self.batch_start_time
+        self.times.append(batch_time)
+        self.total_time += batch_time
+
+def print_gpu_info():
+    gpus = tf.config.list_physical_devices('GPU')
+    name = []
+    if not gpus:
+        print("No GPUs found.")
+    else:
+        for gpu in gpus:
+            print(f"Device: {gpu.device_type}, Name: {gpu.name}")
+            try:
+                gpu_details = tf.config.experimental.get_device_details(gpu)
+                gpu_name = gpu_details.get('device_name', 'Unknown GPU Name')
+                name.append(gpu_name)
+                pci_bus_id = gpu_details.get('pci_bus_id', 'Unknown PCI Bus ID')
+                print(f"Details - Name: {gpu_name}, PCI bus ID: {pci_bus_id}")
+            except Exception as e:
+                print(f"Could not retrieve details for GPU: {gpu.name}. Error: {str(e)}")
+    return name
+        
 class Distiller(tf.keras.Model):
     def __init__(self, student, teacher):
         super().__init__()
         self.teacher = teacher
         self.student = student
         self.loss_tracker = keras.metrics.Mean(name="distillation_loss")
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            'student': self.student,
+            'teacher': self.teacher
+        })
+        return config
+
+    def from_config(cls, config):
+        return cls(**config)
 
     @property
     def metrics(self):
@@ -343,14 +386,35 @@ pythia_distiller.compile(
     temperature=3.0,
 )
 
-print("Training student:")
-pythia_distiller.fit(X_pythia_train,
+print("Training Pythia student:")
+
+if(args.doEarlyStopping):
+    #es_d = EarlyStopping(monitor='val_distillation_loss', mode='min', verbose=1, patience=args.patience)
+    es_d = EarlyStopping(monitor='val_categorical_crossentropy', mode='auto', verbose=1, patience=args.patience)
+    mc_d = ModelCheckpoint(filepath = f'/users/yzhou276/work/QGtag/distill_save/efn_models/student_{Phi_sizes_student}_{F_sizes_student}_efn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia.keras',
+                           monitor='val_categorical_crossentropy',
+                           mode='auto',
+                           verbose=1,
+                           save_best_only=True,
+                           save_format="tf")
+
+    #print("Training student:")
+    hist = pythia_distiller.fit(X_pythia_train,
+                  Y_pythia_train,#_for_distiller,
+                  epochs=num_epoch,
+                  batch_size=batch_size,
+                  validation_data=(X_pythia_val, Y_pythia_val),#_for_distiller),
+                  verbose=1,
+                  callbacks=[es_d,mc_d])
+
+else:
+    pythia_distiller.fit(X_pythia_train,
               Y_pythia_train,
               epochs=20, #num_epoch,
               batch_size=batch_size,
               validation_data=(X_pythia_val, Y_pythia_val),#_for_distiller),
               verbose=1)
-efn_pythia_student.save(f'/users/yzhou276/work/QGtag/distill_save/efn_models/student_{Phi_sizes_student}_{F_sizes_student}_efn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia.keras')
+    efn_pythia_student.save(f'/users/yzhou276/work/QGtag/distill_save/efn_models/student_{Phi_sizes_student}_{F_sizes_student}_efn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia.keras')
 #########################################################################
 
 # Set up the herwig 'simple' and 'student' models, which will be energy-flow networks (EFNs)
@@ -403,100 +467,289 @@ herwig_distiller.compile(
     temperature=3.0,
 )
 
-print("Training student:")
-herwig_distiller.fit(X_herwig_train,
+print("Training Herwig student:")
+
+if(args.doEarlyStopping):
+    #es_d = EarlyStopping(monitor='val_distillation_loss', mode='min', verbose=1, patience=args.patience)
+    es_d = EarlyStopping(monitor='val_categorical_crossentropy', mode='auto', verbose=1, patience=args.patience)
+    mc_d = ModelCheckpoint(filepath = f'/users/yzhou276/work/QGtag/distill_save/efn_models/student_{Phi_sizes_student}_{F_sizes_student}_efn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig.keras',
+                           monitor='val_categorical_crossentropy',
+                           mode='auto',
+                           verbose=1,
+                           save_best_only=True,
+                           save_format="tf")
+
+    #print("Training student:")
+    hist = herwig_distiller.fit(X_herwig_train,
+                  Y_herwig_train,#_for_distiller,
+                  epochs=num_epoch,
+                  batch_size=batch_size,
+                  validation_data=(X_herwig_val, Y_herwig_val),#_for_distiller),
+                  verbose=1,
+                  callbacks=[es_d,mc_d])
+
+else:
+    herwig_distiller.fit(X_herwig_train,
               Y_herwig_train,
               epochs=20, #num_epoch,
               batch_size=batch_size,
               validation_data=(X_herwig_val, Y_herwig_val),#_for_distiller),
               verbose=1)
-efn_herwig_student.save(f'/users/yzhou276/work/QGtag/distill_save/efn_models/student_{Phi_sizes_student}_{F_sizes_student}_efn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig.keras')
+    efn_herwig_student.save(f'/users/yzhou276/work/QGtag/distill_save/efn_models/student_{Phi_sizes_student}_{F_sizes_student}_efn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig.keras')
 
 #########################################################################
 
-with open('/users/yzhou276/work/QGtag/distill_save/efn_auc.txt', 'a') as f:
-    f.write(f"{Phi_sizes_teacher} {F_sizes_teacher} PFN, {Phi_sizes_student} {F_sizes_student} EFN, Patience:{patience}\n")
+gpu = print_gpu_info()
+
+#with open('/users/yzhou276/work/QGtag/distill_save/efn_auc.txt', 'a') as f:
+#    f.write(f"{Phi_sizes_teacher} {F_sizes_teacher} PFN, {Phi_sizes_student} {F_sizes_student} EFN, Patience:{patience}\n")
+
+
+
 
 # get Pythia student predictions on pythia test data and ROC curve
 preds_pythia_student_pythia = efn_pythia_student.predict(X_pythia_test,
                                     batch_size=1000)
 efn_fp_pythia_student_pythia, dnn_tp_pythia_student_pythia, threshs_pythia_student_pythia = roc_curve(Y_pythia_test[:,1], preds_pythia_student_pythia[:,1])
 auc_pythia_student_pythia = roc_auc_score(Y_pythia_test[:,1], preds_pythia_student_pythia[:,1])
+# Get Prediction Time
+pythia_student_pred_time_on_pythia = []
+print('P/P Student Prediction Time:')
+for i in range(6):
+    pred_time_callback = PredictionTimeHistory()
+    predictions = efn_pythia_student.predict(X_pythia_test, batch_size=1000, verbose=1, callbacks=[pred_time_callback])
+    print(pred_time_callback.times)
+    if i>0:
+        pythia_student_pred_time_on_pythia.append(pred_time_callback.times)
+    i=i+1
+pythia_student_pred_time_on_pythia = np.array(pythia_student_pred_time_on_pythia)
+PP_student_avg_pred_time = np.mean(pythia_student_pred_time_on_pythia)
 print()
 print('Pythia/Pythia Student EFN AUC:', auc_pythia_student_pythia)
 print()
-with open('/users/yzhou276/work/QGtag/distill_save/efn_auc.txt', 'a') as f:
-    f.write(f'Student EFN AUC Pythia/Pythia: {auc_pythia_student_pythia}\n')
+#with open('/users/yzhou276/work/QGtag/distill_save/efn_auc.txt', 'a') as f:
+#    f.write(f'Student EFN AUC Pythia/Pythia: {auc_pythia_student_pythia}\n')
+
+
+
+
 # get Pythia student predictions on herwig test data and ROC curve
 preds_pythia_student_herwig = efn_pythia_student.predict(X_herwig_test,
                                     batch_size=1000)
 efn_fp_pythia_student_herwig, dnn_tp_pythia_student_herwig, threshs_pythia_student_herwig = roc_curve(Y_herwig_test[:,1], preds_pythia_student_herwig[:,1])
 auc_pythia_student_herwig = roc_auc_score(Y_herwig_test[:,1], preds_pythia_student_herwig[:,1])
+# Get Prediction Time
+pythia_student_pred_time_on_herwig = []
+print('P/H Student Prediction Time:')
+for i in range(6):
+    pred_time_callback = PredictionTimeHistory()
+    predictions = efn_pythia_student.predict(X_herwig_test, batch_size=1000, verbose=1, callbacks=[pred_time_callback])
+    print(pred_time_callback.times)
+    if i>0:
+        pythia_student_pred_time_on_herwig.append(pred_time_callback.times)
+    i=i+1
+pythia_student_pred_time_on_herwig = np.array(pythia_student_pred_time_on_herwig)
+PH_student_avg_pred_time = np.mean(pythia_student_pred_time_on_herwig)
 print()
 print('Pythia/Herwig Student EFN AUC:', auc_pythia_student_herwig)
 print()
-with open('/users/yzhou276/work/QGtag/distill_save/efn_auc.txt', 'a') as f:
-    f.write(f'Student EFN AUC Pythia/Herwig: {auc_pythia_student_herwig}\n')
+#with open('/users/yzhou276/work/QGtag/distill_save/efn_auc.txt', 'a') as f:
+#    f.write(f'Student EFN AUC Pythia/Herwig: {auc_pythia_student_herwig}\n')
+
+
+### Pythia Student Pareto ###
+#with open(f'/users/yzhou276/work/tagging-pareto/points_yz/best_pythia_efn_student_latent{args.latentSizeStudent}_phi{args.phiSizesStudent}.txt', 'w') as f:
+with open(f'/users/yzhou276/work/QGtag/distill_save/efn_auc/best_pythia_efn_student_latent{args.latentSizeStudent}_phi{args.phiSizesStudent}.txt', 'w') as f:
+    f.write(f'P8A {auc_pythia_student_pythia}\n')
+    f.write(f'H7A {auc_pythia_student_herwig}\n')
+    f.write(f'UNC {np.abs(auc_pythia_student_pythia-auc_pythia_student_herwig)/auc_pythia_student_pythia}\n')
+    f.write(f'P8A Pred Time {PP_student_avg_pred_time}\n')
+    f.write(f'H7A Pred Time {PH_student_avg_pred_time}\n')
+    f.write(f'GPU {gpu}\n')
+    f.write(f'Trained by best Pythia {Phi_sizes_teacher} {F_sizes_teacher} pfn')
+
 
 # get Pythia simple predictions on pythia test data and ROC curve
 preds_pythia_simple_pythia = efn_pythia_simple.predict(X_pythia_test,
                                   batch_size=1000)
 dnn_fp_pythia_simple_pythia, dnn_tp_pythia_simple_pythia, threshs_pythia_simple_pythia = roc_curve(Y_pythia_test[:,1], preds_pythia_simple_pythia[:,1])
 auc_pythia_simple_pythia = roc_auc_score(Y_pythia_test[:,1], preds_pythia_simple_pythia[:,1])
+# Get Prediction Time
+pythia_simple_pred_time_on_pythia = []
+print('P/P Simple Prediction Time:')
+for i in range(6):
+    pred_time_callback = PredictionTimeHistory()
+    predictions = efn_pythia_simple.predict(X_pythia_test, batch_size=1000, verbose=1, callbacks=[pred_time_callback])
+    print(pred_time_callback.times)
+    if i>0:
+        pythia_simple_pred_time_on_pythia.append(pred_time_callback.times)
+    i=i+1
+pythia_simple_pred_time_on_pythia = np.array(pythia_simple_pred_time_on_pythia)
+PP_simple_avg_pred_time = np.mean(pythia_simple_pred_time_on_pythia)
 print()
 print('Pythia/Pythia Simple EFN AUC:', auc_pythia_simple_pythia)
 print()
-with open('/users/yzhou276/work/QGtag/distill_save/efn_auc.txt', 'a') as f:
-    f.write(f'Simple EFN AUC Pythia/Pythia: {auc_pythia_simple_pythia}\n')
+#with open('/users/yzhou276/work/QGtag/distill_save/efn_auc.txt', 'a') as f:
+#    f.write(f'Simple EFN AUC Pythia/Pythia: {auc_pythia_simple_pythia}\n')
+
+
+
+
 # get Pythia simple predictions on herwig test data and ROC curve
 preds_pythia_simple_herwig = efn_pythia_simple.predict(X_herwig_test,
                                   batch_size=1000)
 dnn_fp_pythia_simple_herwig, dnn_tp_pythia_simple_herwig, threshs_pythia_simple_herwig = roc_curve(Y_herwig_test[:,1], preds_pythia_simple_herwig[:,1])
 auc_pythia_simple_herwig = roc_auc_score(Y_herwig_test[:,1], preds_pythia_simple_herwig[:,1])
+# Get Prediction Time
+pythia_simple_pred_time_on_herwig = []
+print('P/H Student Prediction Time:')
+for i in range(6):
+    pred_time_callback = PredictionTimeHistory()
+    predictions = efn_pythia_simple.predict(X_herwig_test, batch_size=1000, verbose=1, callbacks=[pred_time_callback])
+    print(pred_time_callback.times)
+    if i>0:
+        pythia_simple_pred_time_on_herwig.append(pred_time_callback.times)
+    i=i+1
+pythia_simple_pred_time_on_herwig = np.array(pythia_simple_pred_time_on_herwig)
+PH_simple_avg_pred_time = np.mean(pythia_simple_pred_time_on_herwig)
 print()
 print('Pythia/Herwig Simple EFN AUC:', auc_pythia_simple_herwig)
 print()
-with open('/users/yzhou276/work/QGtag/distill_save/efn_auc.txt', 'a') as f:
-    f.write(f'Simple EFN AUC Pythia/Herwig: {auc_pythia_simple_herwig}\n')
+#with open('/users/yzhou276/work/QGtag/distill_save/efn_auc.txt', 'a') as f:
+#    f.write(f'Simple EFN AUC Pythia/Herwig: {auc_pythia_simple_herwig}\n')
+
+
+### Pythia Simple Pareto ###
+#with open(f'/users/yzhou276/work/tagging-pareto/points_yz/best_pythia_efn_latent{args.latentSizeStudent}_phi{args.phiSizesStudent}.txt', 'w') as f:
+with open(f'/users/yzhou276/work/QGtag/distill_save/efn_auc/best_pythia_efn_latent{args.latentSizeStudent}_phi{args.phiSizesStudent}.txt', 'w') as f:
+    f.write(f'P8A {auc_pythia_simple_pythia}\n')
+    f.write(f'H7A {auc_pythia_simple_herwig}\n')
+    f.write(f'UNC {np.abs(auc_pythia_simple_pythia-auc_pythia_simple_herwig)/auc_pythia_simple_pythia}\n')
+    f.write(f'P8A Pred Time {PP_simple_avg_pred_time}\n')
+    f.write(f'H7A Pred Time {PH_simple_avg_pred_time}\n')
+    f.write(f'GPU {gpu}')
+
+
 
 # get Herwig student predictions on herwig test data and ROC curve
 preds_herwig_student_herwig = efn_herwig_student.predict(X_herwig_test,
                                     batch_size=1000)
 efn_fp_herwig_student_herwig, dnn_tp_herwig_student_herwig, threshs_herwig_student_herwig = roc_curve(Y_herwig_test[:,1], preds_herwig_student_herwig[:,1])
 auc_herwig_student_herwig = roc_auc_score(Y_herwig_test[:,1], preds_herwig_student_herwig[:,1])
+# Get Prediction Time
+herwig_student_pred_time_on_herwig = []
+print('H/H Student Prediction Time:')
+for i in range(6):
+    pred_time_callback = PredictionTimeHistory()
+    predictions = efn_herwig_student.predict(X_herwig_test, batch_size=1000, verbose=1, callbacks=[pred_time_callback])
+    print(pred_time_callback.times)
+    if i>0:
+        herwig_student_pred_time_on_herwig.append(pred_time_callback.times)
+    i=i+1
+herwig_student_pred_time_on_herwig = np.array(herwig_student_pred_time_on_herwig)
+HH_student_avg_pred_time = np.mean(herwig_student_pred_time_on_herwig)
 print()
 print('Herwig/Herwig Student EFN AUC:', auc_herwig_student_herwig)
 print()
-with open('/users/yzhou276/work/QGtag/distill_save/efn_auc.txt', 'a') as f:
-    f.write(f'Student EFN AUC Herwig/Herwig: {auc_herwig_student_herwig}\n')
+#with open('/users/yzhou276/work/QGtag/distill_save/efn_auc.txt', 'a') as f:
+#    f.write(f'Student EFN AUC Herwig/Herwig: {auc_herwig_student_herwig}\n')
+
+
+
+
 # get Herwig student predictions on pythia test data and ROC curve
 preds_herwig_student_pythia = efn_herwig_student.predict(X_pythia_test,
                                     batch_size=1000)
 efn_fp_herwig_student_pythia, dnn_tp_herwig_student_pythia, threshs_herwig_student_pythia = roc_curve(Y_pythia_test[:,1], preds_herwig_student_pythia[:,1])
 auc_herwig_student_pythia = roc_auc_score(Y_pythia_test[:,1], preds_herwig_student_pythia[:,1])
+# Get Prediction Time
+herwig_student_pred_time_on_pythia = []
+print('H/P Student Prediction Time:')
+for i in range(6):
+    pred_time_callback = PredictionTimeHistory()
+    predictions = efn_herwig_student.predict(X_pythia_test, batch_size=1000, verbose=1, callbacks=[pred_time_callback])
+    print(pred_time_callback.times)
+    if i>0:
+        herwig_student_pred_time_on_pythia.append(pred_time_callback.times)
+    i=i+1
+herwig_student_pred_time_on_pythia = np.array(herwig_student_pred_time_on_pythia)
+HP_student_avg_pred_time = np.mean(herwig_student_pred_time_on_pythia)
 print()
 print('Herwig/Pythia Student EFN AUC:', auc_herwig_student_pythia)
 print()
-with open('/users/yzhou276/work/QGtag/distill_save/efn_auc.txt', 'a') as f:
-    f.write(f'Student EFN AUC Herwig/Pythia: {auc_herwig_student_pythia}\n')
+#with open('/users/yzhou276/work/QGtag/distill_save/efn_auc.txt', 'a') as f:
+#    f.write(f'Student EFN AUC Herwig/Pythia: {auc_herwig_student_pythia}\n')
+
+
+### Herwig Student Pareto ###
+#with open(f'/users/yzhou276/work/tagging-pareto/points_yz/best_herwig_efn_student_latent{args.latentSizeStudent}_phi{args.phiSizesStudent}.txt', 'w') as f:
+with open(f'/users/yzhou276/work/QGtag/distill_save/efn_auc/best_herwig_efn_student_latent{args.latentSizeStudent}_phi{args.phiSizesStudent}.txt', 'w') as f:
+    f.write(f'P8A {auc_herwig_student_pythia}\n')
+    f.write(f'H7A {auc_herwig_student_herwig}\n')
+    f.write(f'UNC {np.abs(auc_herwig_student_pythia-auc_herwig_student_herwig)/auc_herwig_student_pythia}\n')
+    f.write(f'P8A Pred Time {HP_student_avg_pred_time}\n')
+    f.write(f'H7A Pred Time {HH_student_avg_pred_time}\n')
+    f.write(f'GPU {gpu}\n')
+    f.write(f'Trained by best Herwig {Phi_sizes_teacher} {F_sizes_teacher} pfn')
+
+
 
 # get Herwig simple predictions on herwig test data and ROC curve
 preds_herwig_simple_herwig = efn_herwig_simple.predict(X_herwig_test,
                                   batch_size=1000)
 dnn_fp_herwig_simple_herwig, dnn_tp_herwig_simple_herwig, threshs_herwig_simple_herwig = roc_curve(Y_herwig_test[:,1], preds_herwig_simple_herwig[:,1])
 auc_herwig_simple_herwig = roc_auc_score(Y_herwig_test[:,1], preds_herwig_simple_herwig[:,1])
+# Get Prediction Time
+herwig_simple_pred_time_on_herwig = []
+print('H/H Simple Prediction Time:')
+for i in range(6):
+    pred_time_callback = PredictionTimeHistory()
+    predictions = efn_herwig_simple.predict(X_herwig_test, batch_size=1000, verbose=1, callbacks=[pred_time_callback])
+    print(pred_time_callback.times)
+    if i>0:
+        herwig_simple_pred_time_on_herwig.append(pred_time_callback.times)
+    i=i+1
+herwig_simple_pred_time_on_herwig = np.array(herwig_simple_pred_time_on_herwig)
+HH_simple_avg_pred_time = np.mean(herwig_simple_pred_time_on_herwig)
 print()
 print('Herwig/Herwig Simple EFN AUC:', auc_herwig_simple_herwig)
 print()
-with open('/users/yzhou276/work/QGtag/distill_save/efn_auc.txt', 'a') as f:
-    f.write(f'Simple EFN AUC Herwig/Herwig: {auc_herwig_simple_herwig}\n')
+#with open('/users/yzhou276/work/QGtag/distill_save/efn_auc.txt', 'a') as f:
+#    f.write(f'Simple EFN AUC Herwig/Herwig: {auc_herwig_simple_herwig}\n')
+
+
+
+
 # get Herwig simple predictions on pythia test data and ROC curve
 preds_herwig_simple_pythia = efn_herwig_simple.predict(X_pythia_test,
                                   batch_size=1000)
 dnn_fp_herwig_simple_pythia, dnn_tp_herwig_simple_pythia, threshs_herwig_simple_pythia = roc_curve(Y_pythia_test[:,1], preds_herwig_simple_pythia[:,1])
 auc_herwig_simple_pythia = roc_auc_score(Y_pythia_test[:,1], preds_herwig_simple_pythia[:,1])
+# Get Prediction Time
+herwig_simple_pred_time_on_pythia = []
+print('H/P Simple Prediction Time:')
+for i in range(6):
+    pred_time_callback = PredictionTimeHistory()
+    predictions = efn_herwig_simple.predict(X_pythia_test, batch_size=1000, verbose=1, callbacks=[pred_time_callback])
+    print(pred_time_callback.times)
+    if i>0:
+        herwig_simple_pred_time_on_pythia.append(pred_time_callback.times)
+    i=i+1
+herwig_simple_pred_time_on_pythia = np.array(herwig_simple_pred_time_on_pythia)
+HP_simple_avg_pred_time = np.mean(herwig_simple_pred_time_on_pythia)
 print()
 print('Herwig/Pythia Simple EFN AUC:', auc_herwig_simple_pythia)
 print()
-with open('/users/yzhou276/work/QGtag/distill_save/efn_auc.txt', 'a') as f:
-    f.write(f'Simple EFN AUC Herwig/Pythia: {auc_herwig_simple_pythia}\n\n')
+#with open('/users/yzhou276/work/QGtag/distill_save/efn_auc.txt', 'a') as f:
+#    f.write(f'Simple EFN AUC Herwig/Pythia: {auc_herwig_simple_pythia}\n\n')
+
+
+### Herwig Simple Pareto ###
+#with open(f'/users/yzhou276/work/tagging-pareto/points_yz/best_herwig_efn_latent{args.latentSizeStudent}_phi{args.phiSizesStudent}.txt', 'w') as f:
+with open(f'/users/yzhou276/work/QGtag/distill_save/efn_auc/best_herwig_efn_latent{args.latentSizeStudent}_phi{args.phiSizesStudent}.txt', 'w') as f:
+    f.write(f'P8A {auc_herwig_simple_pythia}\n')
+    f.write(f'H7A {auc_herwig_simple_herwig}\n')
+    f.write(f'UNC {np.abs(auc_herwig_simple_pythia-auc_herwig_simple_herwig)/auc_herwig_simple_pythia}\n')
+    f.write(f'P8A Pred Time {HP_simple_avg_pred_time}\n')
+    f.write(f'H7A Pred Time {HH_simple_avg_pred_time}\n')
+    f.write(f'GPU {gpu}')
