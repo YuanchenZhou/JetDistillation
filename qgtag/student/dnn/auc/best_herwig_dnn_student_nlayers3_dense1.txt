@@ -1,0 +1,7 @@
+P8A 0.5
+H7A 0.5
+UNC 0.0
+P8A Pred Time 0.0016948831528425217
+H7A Pred Time 0.0015872974899855065
+GPU ['Quadro RTX 6000']
+Trained by best Herwig (250, 250, 128) (250, 250, 250) pfn
