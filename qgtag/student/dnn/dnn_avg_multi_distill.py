@@ -253,7 +253,7 @@ use_pids = args.usePIDs
 
 # network architecture parameters
 # PFN
-Phi_sizes_teacher, F_sizes_teacher = (args.phiSizes, args.phiSizes, args.latentSize), (args.phiSizes, args.phiSizes, args.phiSizes)
+# Phi_sizes_teacher, F_sizes_teacher = (args.phiSizes, args.phiSizes, args.latentSize), (args.phiSizes, args.phiSizes, args.phiSizes)
 # DNN
 nLayers = args.nLayers
 layerSize = args.layerSize
@@ -322,21 +322,49 @@ print('Done herwig train/val/test split')
 print('Pythia Shape:',X_pythia.shape)
 print('Herwig Shape:',X_herwig.shape)
 
+############################################
 # Load Teacher Models
 model_save_path = '/users/yzhou276/work/qgtag/simple/pfn/model/'
+pythia_latent_size_list = [16,32,64,128,256]
+herwig_latent_size_list = []
 
-# Load pythia pfn teacher model
-pfn_teacher_pythia = load_model(model_save_path+f'best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia.keras', safe_mode=False)
+# Load pythia, herwig pfn teacher model
+pythia_teachers = []
+pythia_teachers_names = []
+herwig_teachers = []
+herwig_teachers_names = []
+for i in pythia_latent_size_list:
+    Phi_sizes_teacher, F_sizes_teacher = (args.phiSizes, args.phiSizes, i), (args.phiSizes, args.phiSizes, args.phiSizes)
+    pfn_teacher_pythia = load_model(model_save_path+f'best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia.keras', safe_mode=False)
+    pythia_teachers.append(pfn_teacher_pythia)
+    pythia_teachers_names.append(f'best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia.keras')
+for i in herwig_latent_size_list:
+    Phi_sizes_teacher, F_sizes_teacher = (args.phiSizes, args.phiSizes, i), (args.phiSizes, args.phiSizes, args.phiSizes)
+    pfn_teacher_herwig = load_model(model_save_path+f'best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig.keras', safe_mode=False)
+    herwig_teachers.append(pfn_teacher_herwig)
+    herwig_teachers_names.append(f'best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig.keras')
 
-# Load herwig pfn teacher model
-pfn_teacher_herwig = load_model(model_save_path+f'best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig.keras', safe_mode=False)
+pfn_teachers = [*pythia_teachers,*herwig_teachers]
+pfn_teachers_names = [*pythia_teachers_names,*herwig_teachers_names]
 
-pfn_teachers = [pfn_teacher_pythia, pfn_teacher_herwig]
+use_scores = True
+pythia_auc_scores = []
+herwig_auc_scores = []
+if use_scores:
+    for i in pfn_teachers:
+        pythia_pred = i.predict(X_pythia_test, batch_size=1000)
+        pythia_auc = roc_auc_score(Y_pythia_test[:,1], pythia_pred[:,1])
+        pythia_auc_scores.append(pythia_auc)
+        herwig_pred = i.predict(X_herwig_test, batch_size=1000)
+        herwig_auc = roc_auc_score(Y_herwig_test[:,1], herwig_pred[:,1])
+        herwig_auc_scores.append(herwig_auc)
+else:
+    for i in pfn_teachers:
+        pythia_auc_scores.append(1)
+        herwig_auc_scores.append(1)
 
-auc_scores = []
-for i in pfn_teachers:
-    auc_scores.append(1)
-
+print('Pythia AUC Scores:',pythia_auc_scores)
+print('Herwig AUC Scores:',herwig_auc_scores)
 ############################################
 
 # build architecture
@@ -347,7 +375,7 @@ dnn_pythia_student = DNN(input_dim=X_pythia_train.shape[1]*X_pythia_train.shape[
 
 # train the pythia student model
 X_train = X_pythia_train
-distiller_pythia = MultiDistiller(student=dnn_pythia_student, teachers=pfn_teachers, scores=auc_scores)
+distiller_pythia = MultiDistiller(student=dnn_pythia_student, teachers=pfn_teachers, scores=pythia_auc_scores)
 
 distiller_pythia.compile(
     optimizer=tf.keras.optimizers.Adam(),
@@ -363,14 +391,14 @@ if(args.doEarlyStopping):
     #es_d = EarlyStopping(monitor='val_distillation_loss', mode='min', verbose=1, patience=args.patience)
     es_d = EarlyStopping(monitor='val_categorical_crossentropy', mode='auto', verbose=1, patience=args.patience)
     '''
-    mc_d = ModelCheckpoint(filepath = f'/users/yzhou276/work/qgtag/student/dnn/avg_model/student_{dense_sizes}_dnn_by_{len(pfn_teachers)}_pfn_teachers_pythia.keras',
+    mc_d = ModelCheckpoint(filepath = f'/users/yzhou276/work/qgtag/student/dnn/avg_model/pythia_student_{dense_sizes}_dnn_by_{len(pythia_teachers)}pythia_{len(herwig_teachers)}herwig_pfn_teachers.keras',
                            monitor='val_categorical_crossentropy',
                            mode='auto',
                            verbose=1,
                            save_best_only=True,
                            save_format="tf")
     '''
-    mc_d = CustomModelCheckpoint(filepath = f'/users/yzhou276/work/qgtag/student/dnn/avg_model/student_{dense_sizes}_dnn_by_{len(pfn_teachers)}_pfn_teachers_pythia.keras',
+    mc_d = CustomModelCheckpoint(filepath = f'/users/yzhou276/work/qgtag/student/dnn/avg_model/pythia_student_{dense_sizes}_dnn_by_{len(pythia_teachers)}pythia_{len(herwig_teachers)}herwig_pfn_teachers.keras',
                                  monitor='val_categorical_crossentropy',
                                  mode='auto',
                                  verbose=1,
@@ -390,7 +418,7 @@ if(args.doEarlyStopping):
     
     #best_weights = ms_d.models[0]
     #dnn_pythia_student.set_weights(best_weights)
-    #dnn_pythia_student.save(f'/users/yzhou276/work/qgtag/student/dnn/avg_model/student_{dense_sizes}_dnn_by_{len(pfn_teachers)}_pfn_teachers_pythia.keras')
+    #dnn_pythia_student.save(f'/users/yzhou276/work/qgtag/student/dnn/avg_model/pythia_student_{dense_sizes}_dnn_by_{len(pythia_teachers)}pythia_{len(herwig_teachers)}herwig_pfn_teachers.keras')
 
 else:
     distiller_pythia.fit(X_pythia_train,
@@ -399,7 +427,7 @@ else:
               batch_size=batch_size,
               validation_data=(X_pythia_val, Y_pythia_val),#_for_distiller),
               verbose=1)
-    dnn_pythia_student.save(f'/users/yzhou276/work/qgtag/student/dnn/avg_model/student_{dense_sizes}_dnn_by_{len(pfn_teachers)}_pfn_teachers_pythia.keras')
+    dnn_pythia_student.save(f'/users/yzhou276/work/qgtag/student/dnn/avg_model/pythia_student_{dense_sizes}_dnn_by_{len(pythia_teachers)}pythia_{len(herwig_teachers)}herwig_pfn_teachers.keras')
 
 #########################################################################
 
@@ -410,7 +438,7 @@ dnn_herwig_student = DNN(input_dim=X_herwig_train.shape[1]*X_herwig_train.shape[
 ############################################
 # train the herwig student model
 X_train = X_herwig_train
-distiller_herwig = MultiDistiller(student=dnn_herwig_student, teachers=pfn_teachers, scores=auc_scores)
+distiller_herwig = MultiDistiller(student=dnn_herwig_student, teachers=pfn_teachers, scores=herwig_auc_scores)
 distiller_herwig.compile(
     optimizer=tf.keras.optimizers.Adam(),
     metrics=[tf.keras.metrics.CategoricalCrossentropy()],
@@ -425,14 +453,14 @@ if(args.doEarlyStopping):
     #es_d = EarlyStopping(monitor='val_distillation_loss', mode='min', verbose=1, patience=args.patience)
     es_d = EarlyStopping(monitor='val_categorical_crossentropy', mode='auto', verbose=1, patience=args.patience)
     '''
-    mc_d = ModelCheckpoint(filepath = f'/users/yzhou276/work/qgtag/student/dnn/avg_model/student_{dense_sizes}_dnn_by_{len(pfn_teachers)}_pfn_teachers_herwig.keras',
+    mc_d = ModelCheckpoint(filepath = f'/users/yzhou276/work/qgtag/student/dnn/avg_model/herwig_student_{dense_sizes}_dnn_by_{len(pythia_teachers)}pythia_{len(herwig_teachers)}herwig_pfn_teachers.keras',
                            monitor='val_categorical_crossentropy',
                            mode='auto',
                            verbose=1,
                            save_best_only=True,
                            save_format="tf")
     '''
-    mc_d = CustomModelCheckpoint(filepath = f'/users/yzhou276/work/qgtag/student/dnn/avg_model/student_{dense_sizes}_dnn_by_{len(pfn_teachers)}_pfn_teachers_herwig.keras',
+    mc_d = CustomModelCheckpoint(filepath = f'/users/yzhou276/work/qgtag/student/dnn/avg_model/herwig_student_{dense_sizes}_dnn_by_{len(pythia_teachers)}pythia_{len(herwig_teachers)}herwig_pfn_teachers.keras',
                                  monitor='val_categorical_crossentropy',
                                  mode='auto',
                                  verbose=1,
@@ -452,7 +480,7 @@ if(args.doEarlyStopping):
 
     #best_weights = ms_d.models[0]
     #dnn_herwig_student.set_weights(best_weights)
-    #dnn_herwig_student.save(f'/users/yzhou276/work/QGtag/distill_save/dnn_models/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig.keras')
+    #dnn_herwig_student.save(f'/users/yzhou276/work/qgtag/student/dnn/avg_model/herwig_student_{dense_sizes}_dnn_by_{len(pythia_teachers)}pythia_{len(herwig_teachers)}herwig_pfn_teachers.keras')
     
 else:
     distiller_herwig.fit(X_herwig_train,
@@ -461,7 +489,7 @@ else:
                      batch_size=batch_size,
                      validation_data=(X_herwig_val, Y_herwig_val),#_for_distiller),
                      verbose=1)
-    dnn_herwig_student.save(f'/users/yzhou276/work/qgtag/student/dnn/avg_model/student_{dense_sizes}_dnn_by_{len(pfn_teachers)}_pfn_teachers_herwig.keras')
+    dnn_herwig_student.save(f'/users/yzhou276/work/qgtag/student/dnn/avg_model/herwig_student_{dense_sizes}_dnn_by_{len(pythia_teachers)}pythia_{len(herwig_teachers)}herwig_pfn_teachers.keras')
 
 #########################################################################
 
@@ -511,14 +539,14 @@ print()
 
 
 ### Pythia Student Pareto ###
-with open(f'/users/yzhou276/work/qgtag/student/dnn/avg_auc/best_pythia_dnn_student_nlayers{nLayers}_dense{layerSize}.txt', 'w') as f:
+with open(f'/users/yzhou276/work/qgtag/student/dnn/avg_auc/best_pythia_dnn_student_nlayers{nLayers}_dense{layerSize}_by_{len(pythia_teachers)}pythia_{len(herwig_teachers)}herwig_pfn_teachers.txt', 'w') as f:
     f.write(f'P8A {auc_pythia_student_pythia}\n')
     f.write(f'H7A {auc_pythia_student_herwig}\n')
     f.write(f'UNC {np.abs(auc_pythia_student_pythia-auc_pythia_student_herwig)/auc_pythia_student_pythia}\n')
     f.write(f'P8A Pred Time {PP_student_avg_pred_time}\n')
     f.write(f'H7A Pred Time {PH_student_avg_pred_time}\n')
     f.write(f'GPU {gpu}\n')
-    f.write(f'Trained by {len(pfn_teachers)} {Phi_sizes_teacher} {F_sizes_teacher} pfn')
+    f.write(f'Trained by {pfn_teachers_names}')
 
 
 # get Herwig student predictions on herwig test data and ROC curve
@@ -564,11 +592,11 @@ print()
 
 
 ### Herwig Student Pareto ###
-with open(f'/users/yzhou276/work/qgtag/student/dnn/avg_auc/best_herwig_dnn_student_nlayers{nLayers}_dense{layerSize}.txt', 'w') as f:
+with open(f'/users/yzhou276/work/qgtag/student/dnn/avg_auc/best_herwig_dnn_student_nlayers{nLayers}_dense{layerSize}_by_{len(pythia_teachers)}pythia_{len(herwig_teachers)}herwig_pfn_teachers.txt', 'w') as f:
     f.write(f'P8A {auc_herwig_student_pythia}\n')
     f.write(f'H7A {auc_herwig_student_herwig}\n')
     f.write(f'UNC {np.abs(auc_herwig_student_pythia-auc_herwig_student_herwig)/auc_herwig_student_pythia}\n')
     f.write(f'P8A Pred Time {HP_student_avg_pred_time}\n')
     f.write(f'H7A Pred Time {HH_student_avg_pred_time}\n')
     f.write(f'GPU {gpu}\n')
-    f.write(f'Trained by {len(pfn_teachers)} {Phi_sizes_teacher} {F_sizes_teacher} pfn')
+    f.write(f'Trained by {pfn_teachers_names}')
