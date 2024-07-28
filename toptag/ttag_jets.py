@@ -213,3 +213,4 @@ def load(num_data=100000, pad=True, ncol=4,
 
     return X, y
     
+# Put this in virtual_environment/lib/python3.9/site-packages/energyflow/datasets/
