@@ -133,7 +133,7 @@ print('Done pythia train/val/test split')
 
 # load Herwig training data
 print('Loading the Herwig training dataset ...')
-X_herwig, y_herwig = ttag_jets.load(train_herwig + val_herwig + test_herwig, generator='herwig')
+X_herwig, y_herwig = ttag_jets.load(train_herwig + val_herwig + test_herwig, generator='herwig', cache_dir='~/.energyflow/herwig')
 #n_herwig_pad =  200 - X_herwig.shape[1]
 #X_herwig = np.lib.pad(X_herwig, ((0,0), (0,n_herwig_pad), (0,0)), mode='constant', constant_values=0)
 print('Dataset loaded!')

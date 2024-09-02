@@ -15,7 +15,7 @@ print(X_pythia.shape)
 
 # load Herwig data
 print('Loading the Herwig training dataset ...')
-X_herwig, y_herwig = ttag_jets.load(herwig_num, generator='herwig')
+X_herwig, y_herwig = ttag_jets.load(herwig_num, generator='herwig', cache_dir='~/.energyflow/herwig')
 print('Dataset loaded!')
 print(X_herwig.shape)
 

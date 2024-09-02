@@ -5,8 +5,8 @@ pfn_latent_sizes = [128]
 #pfn_phi_sizes = [50,100,250,500]
 pfn_phi_sizes = [250]
 
-nlayers = [2]#[2,3,4,5,10]
-dense_sizes = [100]#[1,10,25,50,100,200,300,500]
+nlayers = [2,3,4,5,10]
+dense_sizes = [1,10,25,50,100,200,300,500]
 
 for l in pfn_latent_sizes:
     for phi in pfn_phi_sizes:
@@ -31,7 +31,7 @@ for l in pfn_latent_sizes:
 
                     run_script.write('source /users/yzhou276/work/toptag/top/bin/activate\n\n')
 
-                    cmd =  'python3 dnn_lms_multi_distill.py '
+                    cmd =  'python3 dnn_mix_distill.py '
                     cmd += '-nEpochs=200 '
                     cmd += '-batchSize=500 '
                     cmd += '-latentSize='+str(l)+' '

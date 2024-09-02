@@ -130,7 +130,7 @@ print('Done pythia train/val/test split')
 
 # load Herwig training data
 print('Loading the Herwig training dataset ...')
-X_herwig, y_herwig = ttag_jets.load(train_herwig + val_herwig + test_herwig, generator='herwig')
+X_herwig, y_herwig = ttag_jets.load(train_herwig + val_herwig + test_herwig, generator='herwig', cache_dir='~/.energyflow/herwig')
 print('Dataset loaded!')
 # convert labels to categorical
 Y_herwig = to_categorical(y_herwig, num_classes=2)

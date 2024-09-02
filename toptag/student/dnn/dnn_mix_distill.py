@@ -329,7 +329,7 @@ else:
 print('Finished preprocessing')
 # do train/val/test split
 (X_pythia_train, X_pythia_val, X_pythia_test,
- Y_pythia_train, Y_pythia_val, Y_pythia_test) = data_split(X_pythia, Y_pythia, val=val_pythia, test=test_pythia)
+ Y_pythia_train, Y_pythia_val, Y_pythia_test) = data_split(X_pythia, Y_pythia, val=val_pythia, test=test_pythia, shuffle=True)
 print('Done pythia train/val/test split')
 
 # load Herwig training data
@@ -355,35 +355,47 @@ else:
 print('Finished preprocessing')
 # do train/val/test split
 (X_herwig_train, X_herwig_val, X_herwig_test,
- Y_herwig_train, Y_herwig_val, Y_herwig_test) = data_split(X_herwig, Y_herwig, val=val_herwig, test=test_herwig)
+ Y_herwig_train, Y_herwig_val, Y_herwig_test) = data_split(X_herwig, Y_herwig, val=val_herwig, test=test_herwig, shuffle=True)
 print('Done herwig train/val/test split')
+
+
+X_mix = np.concatenate((X_pythia,X_herwig), axis=0)
+X_mix_train = np.concatenate((X_pythia_train,X_herwig_train),axis=0)
+X_mix_val = np.concatenate((X_pythia_val,X_herwig_val),axis=0)
+X_mix_test = np.concatenate((X_pythia_test,X_herwig_test),axis=0)
+Y_mix = np.concatenate((Y_pythia,Y_herwig),axis=0)
+Y_mix_train = np.concatenate((Y_pythia_train,Y_herwig_train),axis=0)
+Y_mix_val = np.concatenate((Y_pythia_val,Y_herwig_val),axis=0)
+Y_mix_test = np.concatenate((Y_pythia_test,Y_herwig_test),axis=0)
+print('Done Mixing Pythia and Herwig')
+
 
 print('Pythia Shape:',X_pythia.shape)
 print('Herwig Shape:',X_herwig.shape)
+print('Mix Shape:', X_mix.shape)
 
+
+####################
 # Load Teacher Models
 model_save_path = '/users/yzhou276/work/toptag/simple/pfn/model/'
 
-# Load pythia pfn teacher model
-pfn_teacher_pythia = load_model(model_save_path+f'best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia.keras', safe_mode=False)
-
-# Load herwig pfn teacher model
-pfn_teacher_herwig = load_model(model_save_path+f'best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig.keras', safe_mode=False)
+# Load mix pfn teacher model
+pfn_teacher_mix = load_model(model_save_path+f'best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_mix.keras', safe_mode=False)
 
 
 ############################################
 
 # build architecture
 # dense_sizes above
-dnn_pythia_student = DNN(input_dim=X_pythia_train.shape[1]*X_pythia_train.shape[2], dense_sizes=dense_sizes)
+dnn_mix_student = DNN(input_dim=X_mix_train.shape[1]*X_mix_train.shape[2], dense_sizes=dense_sizes)
 
 ############################################
 
-# train the pythia student model
-X_train = X_pythia_train
-distiller_pythia = Distiller(student=dnn_pythia_student, teacher=pfn_teacher_pythia)
+# train the mix student model
+X_train = X_mix_train
+distiller_mix = Distiller(student=dnn_mix_student, teacher=pfn_teacher_mix)
 
-distiller_pythia.compile(
+distiller_mix.compile(
     optimizer=tf.keras.optimizers.Adam(),
     metrics=[tf.keras.metrics.CategoricalCrossentropy()],
     student_loss_fn=tf.keras.losses.CategoricalCrossentropy(),
@@ -391,20 +403,20 @@ distiller_pythia.compile(
     alpha=0.5, # was 0.1 but doesn't do anything right now
     temperature=3.0,)
 
-print("Training pythia student:")
+print("Training mix student:")
 
 if(args.doEarlyStopping):
     #es_d = EarlyStopping(monitor='val_distillation_loss', mode='min', verbose=1, patience=args.patience)
     es_d = EarlyStopping(monitor='val_categorical_crossentropy', mode='auto', verbose=1, patience=args.patience)
     '''
-    mc_d = ModelCheckpoint(filepath = f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia.keras',
+    mc_d = ModelCheckpoint(filepath = f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_mix.keras',
                            monitor='val_categorical_crossentropy',
                            mode='auto',
                            verbose=1,
                            save_best_only=True,
                            save_format="tf")
     '''
-    mc_d = CustomModelCheckpoint(filepath = f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia.keras',
+    mc_d = CustomModelCheckpoint(filepath = f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_mix.keras',
                                  monitor='val_categorical_crossentropy',
                                  mode='auto',
                                  verbose=1,
@@ -415,196 +427,79 @@ if(args.doEarlyStopping):
     #ms_d = ModelSnapshot(patience = args.patience)
 
     #print("Training student:")
-    hist = distiller_pythia.fit(X_pythia_train,
-                  Y_pythia_train,#_for_distiller,
+    hist = distiller_mix.fit(X_mix_train,
+                  Y_mix_train,#_for_distiller,
                   epochs=num_epoch,
                   batch_size=batch_size,
-                  validation_data=(X_pythia_val, Y_pythia_val),#_for_distiller),
+                  validation_data=(X_mix_val, Y_mix_val),#_for_distiller),
                   verbose=1,
                   callbacks=[es_d, mc_d]) #ms_d])
 
     #best_weights = ms_d.models[0]
-    #dnn_pythia_student.set_weights(best_weights)
-    #dnn_pythia_student.save(f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia.keras')
+    #dnn_mix_student.set_weights(best_weights)
+    #dnn_mix_student.save(f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_mix.keras')
 
 else:
-    distiller_pythia.fit(X_pythia_train,
-              Y_pythia_train,#,_for_distiller,
+    distiller_mix.fit(X_mix_train,
+              Y_mix_train,#,_for_distiller,
               epochs=20, #num_epoch,
               batch_size=batch_size,
-              validation_data=(X_pythia_val, Y_pythia_val),#_for_distiller),
+              validation_data=(X_mix_val, Y_mix_val),#_for_distiller),
               verbose=1)
-    dnn_pythia_student.save(f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia.keras')
-
-#########################################################################
-
-# build architecture
-# dense_sizes above
-dnn_herwig_student = DNN(input_dim=X_herwig_train.shape[1]*X_herwig_train.shape[2], dense_sizes=dense_sizes)
-
-############################################
-
-# train the herwig student model
-X_train = X_herwig_train
-distiller_herwig = Distiller(student=dnn_herwig_student, teacher=pfn_teacher_herwig)
-distiller_herwig.compile(
-    optimizer=tf.keras.optimizers.Adam(),
-    metrics=[tf.keras.metrics.CategoricalCrossentropy()],
-    student_loss_fn=tf.keras.losses.CategoricalCrossentropy(),
-    distillation_loss_fn=tf.keras.losses.KLDivergence(),
-    alpha=0.5, # was 0.1 but doesn't do anything right now
-    temperature=3.0,)
-
-print("Training herwig student:")
-
-if(args.doEarlyStopping):
-    #es_d = EarlyStopping(monitor='val_distillation_loss', mode='min', verbose=1, patience=args.patience)
-    es_d = EarlyStopping(monitor='val_categorical_crossentropy', mode='auto', verbose=1, patience=args.patience)
-    '''
-    mc_d = ModelCheckpoint(filepath = f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig.keras',
-                           monitor='val_categorical_crossentropy',
-                           mode='auto',
-                           verbose=1,
-                           save_best_only=True,
-                           save_format="tf")
-    '''
-    mc_d = CustomModelCheckpoint(filepath = f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig.keras',
-                                 monitor='val_categorical_crossentropy',
-                                 mode='auto',
-                                 verbose=1,
-                                 save_best_only=True,
-                                 save_format='tf'
-                                 )
-
-    #ms_d = ModelSnapshot(patience = args.patience)
-
-    #print("Training student:")
-    hist = distiller_herwig.fit(X_herwig_train,
-                  Y_herwig_train,#_for_distiller,
-                  epochs=num_epoch,
-                  batch_size=batch_size,
-                  validation_data=(X_herwig_val, Y_herwig_val),#_for_distiller),
-                  verbose=1,
-                  callbacks=[es_d,mc_d]) #ms_d])
-    
-    #best_weights = ms_d.models[0]
-    #dnn_herwig_student.set_weights(best_weights)
-    #dnn_herwig_student.save(f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig.keras')
-    
-else:
-    distiller_herwig.fit(X_herwig_train,
-                     Y_herwig_train,#,_for_distiller,
-                     epochs=20, #num_epoch,
-                     batch_size=batch_size,
-                     validation_data=(X_herwig_val, Y_herwig_val),#_for_distiller),
-                     verbose=1)
-    dnn_herwig_student.save(f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig.keras')
+    dnn_mix_student.save(f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_mix.keras')
 
 #########################################################################
 
 gpu = print_gpu_info()
 
-# get Pythia student predictions on pythia test data and ROC curve
-preds_pythia_student_pythia = dnn_pythia_student.predict(X_pythia_test.reshape(-1,X_pythia_val.shape[1]*X_pythia_val.shape[2]), batch_size=1000)
-dnn_fp_pythia_student_pythia, dnn_tp_pythia_student_pythia, threshs_pythia_student_pythia = roc_curve(Y_pythia_test[:,1], preds_pythia_student_pythia[:,1])
-auc_pythia_student_pythia  = roc_auc_score(Y_pythia_test[:,1], preds_pythia_student_pythia[:,1])
+# get Mix student predictions on pythia test data and ROC curve
+preds_mix_student_pythia = dnn_mix_student.predict(X_pythia_test.reshape(-1,X_pythia_val.shape[1]*X_pythia_val.shape[2]), batch_size=1000)
+dnn_fp_mix_student_pythia, dnn_tp_mix_student_pythia, threshs_mix_student_pythia = roc_curve(Y_pythia_test[:,1], preds_mix_student_pythia[:,1])
+auc_mix_student_pythia  = roc_auc_score(Y_pythia_test[:,1], preds_mix_student_pythia[:,1])
 # Get Prediction Time
-pythia_student_pred_time_on_pythia = []
-print('P/P Student Prediction Time:')
+mix_student_pred_time_on_pythia = []
+print('Mix/P Student Prediction Time:')
 for i in range(6):
     pred_time_callback = PredictionTimeHistory()
-    predictions = dnn_pythia_student.predict(X_pythia_test.reshape(-1,X_pythia_val.shape[1]*X_pythia_val.shape[2]), batch_size=1000, verbose=1, callbacks=[pred_time_callback])
+    predictions = dnn_mix_student.predict(X_pythia_test.reshape(-1,X_pythia_val.shape[1]*X_pythia_val.shape[2]), batch_size=1000, verbose=1, callbacks=[pred_time_callback])
     #print(pred_time_callback.times)
     if i>0:
-        pythia_student_pred_time_on_pythia.append(pred_time_callback.times)
+        mix_student_pred_time_on_pythia.append(pred_time_callback.times)
     i=i+1
-pythia_student_pred_time_on_pythia = np.array(pythia_student_pred_time_on_pythia)
-PP_student_avg_pred_time = np.mean(pythia_student_pred_time_on_pythia)
+mix_student_pred_time_on_pythia = np.array(mix_student_pred_time_on_pythia)
+MixP_student_avg_pred_time = np.mean(mix_student_pred_time_on_pythia)
 print()
-print('Pythia/Pythia Student DNN AUC:', auc_pythia_student_pythia)
+print('Mix/Pythia Student DNN AUC:', auc_mix_student_pythia)
 print()
 
 
-# get Pythia student predictions on herwig test data and ROC curve
-preds_pythia_student_herwig = dnn_pythia_student.predict(X_herwig_test.reshape(-1,X_herwig_val.shape[1]*X_herwig_val.shape[2]), batch_size=1000)
-dnn_fp_pythia_student_herwig, dnn_tp_pythia_student_herwig, threshs_pythia_student_herwig = roc_curve(Y_herwig_test[:,1], preds_pythia_student_herwig[:,1])
-auc_pythia_student_herwig  = roc_auc_score(Y_herwig_test[:,1], preds_pythia_student_herwig[:,1])
+# get Mix student predictions on herwig test data and ROC curve
+preds_mix_student_herwig = dnn_mix_student.predict(X_herwig_test.reshape(-1,X_herwig_val.shape[1]*X_herwig_val.shape[2]), batch_size=1000)
+dnn_fp_mix_student_herwig, dnn_tp_mix_student_herwig, threshs_mix_student_herwig = roc_curve(Y_herwig_test[:,1], preds_mix_student_herwig[:,1])
+auc_mix_student_herwig  = roc_auc_score(Y_herwig_test[:,1], preds_mix_student_herwig[:,1])
 # Get Prediction Time
-pythia_student_pred_time_on_herwig = []
-print('P/H Student Prediction Time:')
+mix_student_pred_time_on_herwig = []
+print('Mix/H Student Prediction Time:')
 for i in range(6):
     pred_time_callback = PredictionTimeHistory()
-    predictions = dnn_pythia_student.predict(X_herwig_test.reshape(-1,X_herwig_val.shape[1]*X_herwig_val.shape[2]), batch_size=1000, verbose=1, callbacks=[pred_time_callback])
+    predictions = dnn_mix_student.predict(X_herwig_test.reshape(-1,X_herwig_val.shape[1]*X_herwig_val.shape[2]), batch_size=1000, verbose=1, callbacks=[pred_time_callback])
     #print(pred_time_callback.times)
     if i>0:
-        pythia_student_pred_time_on_herwig.append(pred_time_callback.times)
+        mix_student_pred_time_on_herwig.append(pred_time_callback.times)
     i=i+1
-pythia_student_pred_time_on_herwig = np.array(pythia_student_pred_time_on_herwig)
-PH_student_avg_pred_time = np.mean(pythia_student_pred_time_on_herwig)
+mix_student_pred_time_on_herwig = np.array(mix_student_pred_time_on_herwig)
+MixH_student_avg_pred_time = np.mean(mix_student_pred_time_on_herwig)
 print()
-print('Pythia/Herwig Student DNN AUC:', auc_pythia_student_herwig)
+print('Mix/Herwig Student DNN AUC:', auc_mix_student_herwig)
 print()
 
 
-### Pythia Student Pareto ###
-with open(f'/users/yzhou276/work/toptag/student/dnn/auc/best_pythia_dnn_student_nlayers{nLayers}_dense{layerSize}.txt', 'w') as f:
-    f.write(f'P8A {auc_pythia_student_pythia}\n')
-    f.write(f'H7A {auc_pythia_student_herwig}\n')
-    f.write(f'UNC {np.abs(auc_pythia_student_pythia-auc_pythia_student_herwig)/auc_pythia_student_pythia}\n')
-    f.write(f'P8A Pred Time {PP_student_avg_pred_time}\n')
-    f.write(f'H7A Pred Time {PH_student_avg_pred_time}\n')
+### Mix Student Pareto ###
+with open(f'/users/yzhou276/work/toptag/student/dnn/auc/best_mix_dnn_student_nlayers{nLayers}_dense{layerSize}.txt', 'w') as f:
+    f.write(f'P8A {auc_mix_student_pythia}\n')
+    f.write(f'H7A {auc_mix_student_herwig}\n')
+    f.write(f'UNC {np.abs(auc_mix_student_pythia-auc_mix_student_herwig)/auc_mix_student_pythia}\n')
+    f.write(f'P8A Pred Time {MixP_student_avg_pred_time}\n')
+    f.write(f'H7A Pred Time {MixH_student_avg_pred_time}\n')
     f.write(f'GPU {gpu}\n')
-    f.write(f'Trained by best Pythia {Phi_sizes_teacher} {F_sizes_teacher} pfn')
-
-
-# get Herwig student predictions on herwig test data and ROC curve
-preds_herwig_student_herwig = dnn_herwig_student.predict(X_herwig_test.reshape(-1,X_herwig_val.shape[1]*X_herwig_val.shape[2]), batch_size=1000)
-dnn_fp_herwig_student_herwig, dnn_tp_herwig_student_herwig, threshs_herwig_student_herwig = roc_curve(Y_herwig_test[:,1], preds_herwig_student_herwig[:,1])
-auc_herwig_student_herwig  = roc_auc_score(Y_herwig_test[:,1], preds_herwig_student_herwig[:,1])
-# Get Prediction Time
-herwig_student_pred_time_on_herwig = []
-print('H/H Student Prediction Time:')
-for i in range(6):
-    pred_time_callback = PredictionTimeHistory()
-    predictions = dnn_herwig_student.predict(X_herwig_test.reshape(-1,X_herwig_val.shape[1]*X_herwig_val.shape[2]), batch_size=1000, verbose=1, callbacks=[pred_time_callback])
-    #print(pred_time_callback.times)
-    if i>0:
-        herwig_student_pred_time_on_herwig.append(pred_time_callback.times)
-    i=i+1
-herwig_student_pred_time_on_herwig = np.array(herwig_student_pred_time_on_herwig)
-HH_student_avg_pred_time = np.mean(herwig_student_pred_time_on_herwig)
-print()
-print('Herwig/Herwig Student DNN AUC:', auc_herwig_student_herwig)
-print()
-
-
-# get Herwig student predictions on pythia test data and ROC curve
-preds_herwig_student_pythia = dnn_herwig_student.predict(X_pythia_test.reshape(-1,X_pythia_val.shape[1]*X_pythia_val.shape[2]), batch_size=1000)
-dnn_fp_herwig_student_pythia, dnn_tp_herwig_student_pythia, threshs_herwig_student_pythia = roc_curve(Y_pythia_test[:,1], preds_herwig_student_pythia[:,1])
-auc_herwig_student_pythia  = roc_auc_score(Y_pythia_test[:,1], preds_herwig_student_pythia[:,1])
-# Get Prediction Time
-herwig_student_pred_time_on_pythia = []
-print('H/P Student Prediction Time:')
-for i in range(6):
-    pred_time_callback = PredictionTimeHistory()
-    predictions = dnn_herwig_student.predict(X_pythia_test.reshape(-1,X_pythia_val.shape[1]*X_pythia_val.shape[2]), batch_size=1000, verbose=1, callbacks=[pred_time_callback])
-    #print(pred_time_callback.times)
-    if i>0:
-        herwig_student_pred_time_on_pythia.append(pred_time_callback.times)
-    i=i+1
-herwig_student_pred_time_on_pythia = np.array(herwig_student_pred_time_on_pythia)
-HP_student_avg_pred_time = np.mean(herwig_student_pred_time_on_pythia)
-print()
-print('Herwig/Pythia Student DNN AUC:', auc_herwig_student_pythia)
-print()
-
-
-### Herwig Student Pareto ###
-with open(f'/users/yzhou276/work/toptag/student/dnn/auc/best_herwig_dnn_student_nlayers{nLayers}_dense{layerSize}.txt', 'w') as f:
-    f.write(f'P8A {auc_herwig_student_pythia}\n')
-    f.write(f'H7A {auc_herwig_student_herwig}\n')
-    f.write(f'UNC {np.abs(auc_herwig_student_pythia-auc_herwig_student_herwig)/auc_herwig_student_pythia}\n')
-    f.write(f'P8A Pred Time {HP_student_avg_pred_time}\n')
-    f.write(f'H7A Pred Time {HH_student_avg_pred_time}\n')
-    f.write(f'GPU {gpu}\n')
-    f.write(f'Trained by best Herwig {Phi_sizes_teacher} {F_sizes_teacher} pfn')
+    f.write(f'Trained by best Mix {Phi_sizes_teacher} {F_sizes_teacher} pfn')

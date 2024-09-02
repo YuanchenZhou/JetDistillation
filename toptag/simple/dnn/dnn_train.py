@@ -132,20 +132,22 @@ for x in X_pythia:
     yphi_avg = np.average(x[mask,1:3], weights=x[mask,0], axis=0)
     x[mask,1:3] -= yphi_avg
     x[mask,0] /= x[:,0].sum()
+
 # handle particle id channel
 if use_pids:
     remap_pids(X_pythia, pid_i=3)
 else:
     X_pythia = X_pythia[:,:,:3]
+
 print('Finished preprocessing')
 # do train/val/test split
 (X_pythia_train, X_pythia_val, X_pythia_test,
- Y_pythia_train, Y_pythia_val, Y_pythia_test) = data_split(X_pythia, Y_pythia, val=val_pythia, test=test_pythia)
+ Y_pythia_train, Y_pythia_val, Y_pythia_test) = data_split(X_pythia, Y_pythia, val=val_pythia, test=test_pythia, shuffle=True)
 print('Done pythia train/val/test split')
 
 # load Herwig training data
 print('Loading the Herwig training dataset ...')
-X_herwig, y_herwig = ttag_jets.load(train_herwig + val_herwig + test_herwig, generator='herwig')
+X_herwig, y_herwig = ttag_jets.load(train_herwig + val_herwig + test_herwig, generator='herwig', cache_dir='~/.energyflow/herwig')
 n_herwig_pad =  200 - X_herwig.shape[1]
 X_herwig = np.lib.pad(X_herwig, ((0,0), (0,n_herwig_pad), (0,0)), mode='constant', constant_values=0)
 print('Dataset loaded!')
@@ -158,21 +160,84 @@ for x in X_herwig:
     yphi_avg = np.average(x[mask,1:3], weights=x[mask,0], axis=0)
     x[mask,1:3] -= yphi_avg
     x[mask,0] /= x[:,0].sum()
+
 # handle particle id channel
 if use_pids:
     remap_pids(X_herwig, pid_i=3)
 else:
     X_herwig = X_herwig[:,:,:3]
+
 print('Finished preprocessing')
 # do train/val/test split
 (X_herwig_train, X_herwig_val, X_herwig_test,
- Y_herwig_train, Y_herwig_val, Y_herwig_test) = data_split(X_herwig, Y_herwig, val=val_herwig, test=test_herwig)
+ Y_herwig_train, Y_herwig_val, Y_herwig_test) = data_split(X_herwig, Y_herwig, val=val_herwig, test=test_herwig, shuffle=True)
 print('Done herwig train/val/test split')
 
 print('Pythia Shape:',X_pythia.shape)
 print('Herwig Shape:',X_herwig.shape)
 
 
+############################################
+# Plot
+# qcd: 0
+# top: 1
+
+pythia_constituent_num = []
+for x in X_pythia:
+    x0=x[:,0]>0
+    n=x[x0].shape[0]
+    pythia_constituent_num.append(n)
+pythia_constituent_num = np.array(pythia_constituent_num)
+
+pythia_qcd_constituent_num = []
+pythia_top_constituent_num = []
+for x in range(y_pythia.shape[0]):
+    if y_pythia[x] == 0:
+        pythia_qcd_constituent_num.append(pythia_constituent_num[x])
+    else:
+        pythia_top_constituent_num.append(pythia_constituent_num[x])
+pythia_qcd_constituent_num = np.array(pythia_qcd_constituent_num)
+pythia_top_constituent_num = np.array(pythia_top_constituent_num)
+
+plt.figure()
+plt.hist(pythia_constituent_num, bins=np.arange(0, 200, 2), label='Pythia Combined', alpha=0.5)
+plt.hist(pythia_qcd_constituent_num, bins=np.arange(0, 200, 2), label='Pythia QCD', alpha=0.5)
+plt.hist(pythia_top_constituent_num, bins=np.arange(0, 200, 2), label='Pythia Top', alpha=0.5)
+plt.ylabel('Number of jets')
+plt.xlabel('Number of Particles')
+plt.title('Pythia Dataset Constituents Count')
+plt.legend()
+plt.show()
+plt.savefig('/users/yzhou276/work/toptag/plots/constituent/constituents_plot/pythia_constituents_count.jpg')
+
+
+herwig_constituent_num = []
+for x in X_herwig:
+    x0=x[:,0]>0
+    n=x[x0].shape[0]
+    herwig_constituent_num.append(n)
+herwig_constituent_num = np.array(herwig_constituent_num)
+
+herwig_qcd_constituent_num = []
+herwig_top_constituent_num = []
+for x in range(y_herwig.shape[0]):
+    if y_herwig[x] == 0:
+        herwig_qcd_constituent_num.append(herwig_constituent_num[x])
+    else:
+        herwig_top_constituent_num.append(herwig_constituent_num[x])
+herwig_qcd_constituent_num = np.array(herwig_qcd_constituent_num)
+herwig_top_constituent_num = np.array(herwig_top_constituent_num)
+
+plt.figure()
+plt.hist(herwig_constituent_num, bins=np.arange(0, 200, 2), label='Herwig Combined', alpha=0.5)
+plt.hist(herwig_qcd_constituent_num, bins=np.arange(0, 200, 2), label='Herwig QCD', alpha=0.5)
+plt.hist(herwig_top_constituent_num, bins=np.arange(0, 200, 2), label='Herwig Top', alpha=0.5)
+plt.ylabel('Number of jets')
+plt.xlabel('Number of Particles')
+plt.title('Herwig Dataset Constituents Count')
+plt.legend()
+plt.show()
+plt.savefig('/users/yzhou276/work/toptag/plots/constituent/constituents_plot/herwig_constituents_count.jpg')
 ############################################
 
 # build architecture
