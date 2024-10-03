@@ -1,8 +1,8 @@
 import os
 
-nlayers = [2,3,4,5,10]
-dense_sizes = [1,10,25,50,100,200,300,500]
-
+nlayers = [2] #[2,3,4,5,10]
+dense_sizes = [100] #[1,10,25,50,100,200,300,500]
+pythia_ratio = 1.0
 
 for n in nlayers:
     for d in dense_sizes:
@@ -33,6 +33,7 @@ for n in nlayers:
             cmd += '-usePIDs '
             cmd += '-nLayers='+str(n)+' '
             cmd += '-layerSize='+str(d)+' '
+            cmd += '-pythia_ratio='+str(pythia_ratio)+' '
 
             print(cmd)
             run_script.write(cmd+'\n')

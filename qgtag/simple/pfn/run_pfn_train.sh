@@ -1,6 +1,6 @@
 #!/bin/bash                                                                                                                                                                                                 
 
-N=1
+N=10
 
 for ((i=0;i<N;i++))
 do
@@ -12,5 +12,6 @@ do
 	    -phiSizes=250 \
 	    -doEarlyStopping \
 	    -patience=10 \
-	    -usePIDs 
+	    -usePIDs \
+	    -ModelNum=$((i))
 done

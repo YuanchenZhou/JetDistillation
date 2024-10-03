@@ -1,7 +1,7 @@
 import os
 
-pfn_latent_sizes = [1,2,4,8,16,32,64,128,256,512]
-pfn_phi_sizes = [50,100,250,500]
+pfn_latent_sizes = [128] #[1,2,4,8,16,32,64,128,256,512]
+pfn_phi_sizes = [250] #[50,100,250,500]
 
 for l in pfn_latent_sizes:
     for phi in pfn_phi_sizes:
@@ -33,6 +33,7 @@ for l in pfn_latent_sizes:
             cmd += '-doEarlyStopping '
             cmd += '-patience=10 '
             cmd += '-usePIDs '
+            cmd += '-ModelNum=0 '
 
             print(cmd)            
             run_script.write(cmd+'\n')

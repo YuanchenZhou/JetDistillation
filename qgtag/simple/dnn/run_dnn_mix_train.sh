@@ -12,5 +12,6 @@ do
 	    -patience=10 \
 	    -usePIDs \
 	    -nLayers=2 \
-	    -layerSize=100
+	    -layerSize=100 \
+	    -pythia_ratio=0.1
 done

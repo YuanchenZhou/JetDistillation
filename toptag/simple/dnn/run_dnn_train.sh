@@ -11,6 +11,7 @@ do
 	    -doEarlyStopping \
 	    -patience=10 \
 	    -usePIDs \
-	    -nLayers=5 \
-	    -layerSize=25
+	    -nLayers=2 \
+	    -layerSize=100 \
+	    -ModelNum=$((i))
 done

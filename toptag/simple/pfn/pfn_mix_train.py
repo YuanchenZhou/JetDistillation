@@ -127,7 +127,7 @@ else:
 print('Finished preprocessing')
 # do train/val/test split
 (X_pythia_train, X_pythia_val, X_pythia_test,
- Y_pythia_train, Y_pythia_val, Y_pythia_test) = data_split(X_pythia, Y_pythia, val=val_pythia, test=test_pythia)
+ Y_pythia_train, Y_pythia_val, Y_pythia_test) = data_split(X_pythia, Y_pythia, val=val_pythia, test=test_pythia, shuffle=False)
 print('Done pythia train/val/test split')
 
 
@@ -154,7 +154,7 @@ else:
 print('Finished preprocessing')
 # do train/val/test split
 (X_herwig_train, X_herwig_val, X_herwig_test,
- Y_herwig_train, Y_herwig_val, Y_herwig_test) = data_split(X_herwig, Y_herwig, val=val_herwig, test=test_herwig)
+ Y_herwig_train, Y_herwig_val, Y_herwig_test) = data_split(X_herwig, Y_herwig, val=val_herwig, test=test_herwig, shuffle=False)
 print('Done herwig train/val/test split')
 
 

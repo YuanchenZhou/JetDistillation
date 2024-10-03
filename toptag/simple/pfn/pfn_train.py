@@ -79,6 +79,8 @@ parser.add_argument("-patience", dest='patience', default=20, type=int, required
                     help="How patient")
 parser.add_argument("-usePIDs", dest='usePIDs', action='store_false', required=False,
                     help="Use PIDs? If True, this script will currently break!")
+parser.add_argument("-ModelNum", dest='ModelNum', default=0, type=int, required=False,
+                    help="label each model")
 args = parser.parse_args()
 
 ################################################################################
@@ -102,6 +104,7 @@ if(args.doEarlyStopping):
     num_epoch = 500
 batch_size = args.batchSize
 patience = args.patience
+model_num=args.ModelNum
 ################################################################################
 
 # load Pythia training data
@@ -125,7 +128,7 @@ else:
 print('Finished preprocessing')
 # do train/val/test split
 (X_pythia_train, X_pythia_val, X_pythia_test,
- Y_pythia_train, Y_pythia_val, Y_pythia_test) = data_split(X_pythia, Y_pythia, val=val_pythia, test=test_pythia)
+ Y_pythia_train, Y_pythia_val, Y_pythia_test) = data_split(X_pythia, Y_pythia, val=val_pythia, test=test_pythia, shuffle=True)
 print('Done pythia train/val/test split')
 
 # load Herwig training data
@@ -149,7 +152,7 @@ else:
 print('Finished preprocessing')
 # do train/val/test split
 (X_herwig_train, X_herwig_val, X_herwig_test,
- Y_herwig_train, Y_herwig_val, Y_herwig_test) = data_split(X_herwig, Y_herwig, val=val_herwig, test=test_herwig)
+ Y_herwig_train, Y_herwig_val, Y_herwig_test) = data_split(X_herwig, Y_herwig, val=val_herwig, test=test_herwig, shuffle=True)
 print('Done herwig train/val/test split')
 
 print('Pythia Shape:',X_pythia.shape)
@@ -164,7 +167,7 @@ pfn_herwig_teacher = PFN(input_dim=X_herwig.shape[-1], Phi_sizes=Phi_sizes_teach
 if(args.doEarlyStopping):
     from keras.callbacks import EarlyStopping,ModelCheckpoint
     es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=patience)
-    mc = ModelCheckpoint(filepath =f'/users/yzhou276/work/toptag/simple/pfn/model/best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia.keras', monitor='val_loss', mode='min', verbose=1, save_best_only=True)
+    mc = ModelCheckpoint(filepath =f'/users/yzhou276/work/toptag/simple/pfn/model/best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia_{model_num}.keras', monitor='val_loss', mode='min', verbose=1, save_best_only=True)
     print("Training pythia teacher:")
     pfn_pythia_teacher.fit(X_pythia_train, Y_pythia_train,
                     epochs=num_epoch,
@@ -179,14 +182,14 @@ else:
                     batch_size=batch_size,
                     validation_data=(X_pythia_val, Y_pythia_val),
                     verbose=1)
-    pfn_pythia_teacher.save(f'/users/yzhou276/work/toptag/simple/pfn/model/best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia.keras')
+    pfn_pythia_teacher.save(f'/users/yzhou276/work/toptag/simple/pfn/model/best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia_{model_num}.keras')
 
 
 # train the herwig teacher model
 if(args.doEarlyStopping):
     from keras.callbacks import EarlyStopping,ModelCheckpoint
     es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=patience)
-    mc = ModelCheckpoint(filepath =f'/users/yzhou276/work/toptag/simple/pfn/model/best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig.keras', monitor='val_loss', mode='min', verbose=1, save_best_only=True)
+    mc = ModelCheckpoint(filepath =f'/users/yzhou276/work/toptag/simple/pfn/model/best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig_{model_num}.keras', monitor='val_loss', mode='min', verbose=1, save_best_only=True)
     print("Training herwig teacher:")
     pfn_herwig_teacher.fit(X_herwig_train, Y_herwig_train,
                     epochs=num_epoch,
@@ -201,7 +204,7 @@ else:
                     batch_size=batch_size,
                     validation_data=(X_herwig_val, Y_herwig_val),
                     verbose=1)
-    pfn_pythia_teacher.save(f'/users/yzhou276/work/toptag/simple/pfn/model/best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig.keras')
+    pfn_pythia_teacher.save(f'/users/yzhou276/work/toptag/simple/pfn/model/best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig_{model_num}.keras')
 
 
 
@@ -252,7 +255,7 @@ print()
 
 
 ### Pythia Pareto ###
-with open(f'/users/yzhou276/work/toptag/simple/pfn/auc/best_pythia_pfn_latent{args.latentSize}_phi{args.phiSizes}.txt', 'w') as f:
+with open(f'/users/yzhou276/work/toptag/simple/pfn/auc/best_pythia_pfn_latent{args.latentSize}_phi{args.phiSizes}_{model_num}.txt', 'w') as f:
     f.write(f'P8A {auc_pythia_teacher_pythia}\n')
     f.write(f'H7A {auc_pythia_teacher_herwig}\n')
     f.write(f'UNC {np.abs(auc_pythia_teacher_pythia-auc_pythia_teacher_herwig)/auc_pythia_teacher_pythia}\n')
@@ -305,7 +308,7 @@ print()
 
 
 ### Herwig Pareto ###
-with open(f'/users/yzhou276/work/toptag/simple/pfn/auc/best_herwig_pfn_latent{args.latentSize}_phi{args.phiSizes}.txt', 'w') as f:
+with open(f'/users/yzhou276/work/toptag/simple/pfn/auc/best_herwig_pfn_latent{args.latentSize}_phi{args.phiSizes}_{model_num}.txt', 'w') as f:
     f.write(f'P8A {auc_herwig_teacher_pythia}\n')
     f.write(f'H7A {auc_herwig_teacher_herwig}\n')
     f.write(f'UNC {np.abs(auc_herwig_teacher_pythia-auc_herwig_teacher_herwig)/auc_herwig_teacher_pythia}\n')

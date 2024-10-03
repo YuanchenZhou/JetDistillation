@@ -13,7 +13,7 @@ for n in nlayers:
 
             run_script.write('#SBATCH -N 1\n')
             run_script.write('#SBATCH -n 1\n')
-            run_script.write('#SBATCH --mem=64G\n')
+            run_script.write('#SBATCH --mem=96G\n')
             run_script.write('#SBATCH -t 12:00:00\n')
 
             # https://docs.ccv.brown.edu/oscar/gpu-computing/submit-gpu
@@ -33,6 +33,7 @@ for n in nlayers:
             cmd += '-usePIDs '
             cmd += '-nLayers='+str(n)+' '
             cmd += '-layerSize='+str(d)+' '
+            cmd += '-ModelNum=0 '
 
             print(cmd)
             run_script.write(cmd+'\n')

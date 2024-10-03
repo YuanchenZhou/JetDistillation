@@ -1,6 +1,6 @@
 #!/bin/bash                                                                                                                                                                                                 
 
-N=1
+N=10
 
 for ((i=0;i<N;i++))
 do
@@ -14,5 +14,7 @@ do
 	    -patience=10 \
 	    -usePIDs \
 	    -nLayers=2 \
-	    -layerSize=100
+	    -layerSize=100 \
+	    -ModelNum=$((i)) \
+	    -alpha=0.01
 done

@@ -81,6 +81,8 @@ parser.add_argument("-nLayers",dest='nLayers', default=2, type=int, required=Fal
                     help="How many layers for the dnn")
 parser.add_argument("-layerSize",dest='layerSize', default=100, type=int,required=False,
                     help="How large should the layer dense size be for the simple and student model")
+parser.add_argument("-ModelNum", dest='ModelNum', default=0, type=int, required=False,
+                    help="label each model")
 args = parser.parse_args()
 
 if(args.nEpochs==0 and args.doEarlyStopping==False):
@@ -114,6 +116,7 @@ if(args.doEarlyStopping):
     num_epoch = 500
 batch_size = args.batchSize
 patience = args.patience
+model_num=args.ModelNum
 ################################################################################
 
 # load Pythia training data
@@ -139,7 +142,7 @@ else:
 print('Finished preprocessing')
 # do train/val/test split
 (X_pythia_train, X_pythia_val, X_pythia_test,
- Y_pythia_train, Y_pythia_val, Y_pythia_test) = data_split(X_pythia, Y_pythia, val=val_pythia, test=test_pythia)
+ Y_pythia_train, Y_pythia_val, Y_pythia_test) = data_split(X_pythia, Y_pythia, val=val_pythia, test=test_pythia, shuffle=True)
 print('Done pythia train/val/test split')
 
 # load Herwig training data
@@ -165,7 +168,7 @@ else:
 print('Finished preprocessing')
 # do train/val/test split
 (X_herwig_train, X_herwig_val, X_herwig_test,
- Y_herwig_train, Y_herwig_val, Y_herwig_test) = data_split(X_herwig, Y_herwig, val=val_herwig, test=test_herwig)
+ Y_herwig_train, Y_herwig_val, Y_herwig_test) = data_split(X_herwig, Y_herwig, val=val_herwig, test=test_herwig, shuffle=True)
 print('Done herwig train/val/test split')
 
 print('Pythia Shape:',X_pythia.shape)
@@ -181,7 +184,7 @@ dnn_pythia_simple  = DNN(input_dim=X_pythia_train.shape[1]*X_pythia_train.shape[
 # train the simple pythia model
 if(args.doEarlyStopping):
     es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=patience)
-    mc = ModelCheckpoint(filepath =f'/users/yzhou276/work/qgtag/simple/dnn/model/best_{dense_sizes}_dnn_pythia.keras', monitor='val_loss', mode='min', verbose=1, save_best_only=True)
+    mc = ModelCheckpoint(filepath =f'/users/yzhou276/work/qgtag/simple/dnn/model/best_{dense_sizes}_dnn_pythia_{model_num}.keras', monitor='val_loss', mode='min', verbose=1, save_best_only=True)
     dnn_pythia_simple.fit(X_pythia_train.reshape(-1,X_pythia_train.shape[1]*X_pythia_train.shape[2]), Y_pythia_train,
                    epochs=num_epoch,
                    batch_size=batch_size,
@@ -194,7 +197,7 @@ else:
                    batch_size=batch_size,
                    validation_data=(X_pythia_val.reshape(-1,X_pythia_val.shape[1]*X_pythia_val.shape[2]), Y_pythia_val),
                    verbose=1)
-    dnn_pythia_simple.save(f'/users/yzhou276/work/qgtag/simple/dnn/model/best_{dense_sizes}_dnn_pythia.keras')
+    dnn_pythia_simple.save(f'/users/yzhou276/work/qgtag/simple/dnn/model/best_{dense_sizes}_dnn_pythia_{model_num}.keras')
 
 ############################################
 
@@ -205,7 +208,7 @@ dnn_herwig_simple  = DNN(input_dim=X_herwig_train.shape[1]*X_herwig_train.shape[
 # train the simple herwig model
 if(args.doEarlyStopping):
     es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=patience)
-    mc = ModelCheckpoint(filepath =f'/users/yzhou276/work/qgtag/simple/dnn/model/best_{dense_sizes}_dnn_herwig.keras', monitor='val_loss', mode='min', verbose=1, save_best_only=True)
+    mc = ModelCheckpoint(filepath =f'/users/yzhou276/work/qgtag/simple/dnn/model/best_{dense_sizes}_dnn_herwig_{model_num}.keras', monitor='val_loss', mode='min', verbose=1, save_best_only=True)
     dnn_herwig_simple.fit(X_herwig_train.reshape(-1,X_herwig_train.shape[1]*X_herwig_train.shape[2]), Y_herwig_train,
                    epochs=num_epoch,
                    batch_size=batch_size,
@@ -218,7 +221,7 @@ else:
                    batch_size=batch_size,
                    validation_data=(X_herwig_val.reshape(-1,X_herwig_val.shape[1]*X_herwig_val.shape[2]), Y_herwig_val),
                    verbose=1)
-    dnn_herwig_simple.save(f'/users/yzhou276/work/qgtag/simple/dnn/model/best_{dense_sizes}_dnn_herwig.keras')
+    dnn_herwig_simple.save(f'/users/yzhou276/work/qgtag/simple/dnn/model/best_{dense_sizes}_dnn_herwig_{model_num}.keras')
 
 ############################################
 
@@ -267,7 +270,7 @@ print()
 
 
 ### Pythia Simple Pareto ###
-with open(f'/users/yzhou276/work/qgtag/simple/dnn/auc/best_pythia_dnn_nlayers{nLayers}_dense{layerSize}.txt', 'w') as f:
+with open(f'/users/yzhou276/work/qgtag/simple/dnn/auc/best_pythia_dnn_nlayers{nLayers}_dense{layerSize}_{model_num}.txt', 'w') as f:
     f.write(f'P8A {auc_pythia_simple_pythia}\n')
     f.write(f'H7A {auc_pythia_simple_herwig}\n')
     f.write(f'UNC {np.abs(auc_pythia_simple_pythia-auc_pythia_simple_herwig)/auc_pythia_simple_pythia}\n')
@@ -319,7 +322,7 @@ print()
 
 
 ### Herwig Simple Pareto ###
-with open(f'/users/yzhou276/work/qgtag/simple/dnn/auc/best_herwig_dnn_nlayers{nLayers}_dense{layerSize}.txt', 'w') as f:
+with open(f'/users/yzhou276/work/qgtag/simple/dnn/auc/best_herwig_dnn_nlayers{nLayers}_dense{layerSize}_{model_num}.txt', 'w') as f:
     f.write(f'P8A {auc_herwig_simple_pythia}\n')
     f.write(f'H7A {auc_herwig_simple_herwig}\n')
     f.write(f'UNC {np.abs(auc_herwig_simple_pythia-auc_herwig_simple_herwig)/auc_herwig_simple_pythia}\n')

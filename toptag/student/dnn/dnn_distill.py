@@ -124,17 +124,18 @@ class Distiller(tf.keras.Model):
         self.temperature = temperature
 
     def train_step(
-        self, x=None, y=None, y_pred=None, sample_weight=None, allow_empty=False
+        self, data, y_pred=None, sample_weight=None, allow_empty=False
     ):
+        x, y = data
         # Forward pass of teacher
         #teacher_predictions = self.teacher.model(x, training=False)
-        teacher_predictions = self.teacher(x[0], training=False)
+        teacher_predictions = self.teacher(x, training=False)
         #student_loss = self.student_loss_fn(y, y_pred)
 
         with tf.GradientTape() as tape:
             # Forward pass of student
 
-            student_predictions = self.student.model(x[0].reshape(-1,X_train.shape[1]*X_train.shape[2]),
+            student_predictions = self.student.model(x.reshape(-1,X_train.shape[1]*X_train.shape[2]),
                                                      training=True)
 
             # Compute loss
@@ -142,6 +143,12 @@ class Distiller(tf.keras.Model):
                 tf.nn.softmax(teacher_predictions / self.temperature, axis=1),
                 tf.nn.softmax(student_predictions / self.temperature, axis=1),
             )
+            
+            # Compute student loss
+            student_loss = self.student_loss_fn(y, student_predictions)
+
+            # Compute total loss
+            combined_loss = self.alpha * student_loss + (1 - self.alpha) * distillation_loss
             
         """
         # MLB Note: This kind of combined-loss seems to break things at the moment...
@@ -155,15 +162,16 @@ class Distiller(tf.keras.Model):
 
         # Compute gradients
         trainable_vars = self.student.trainable_variables
-        #gradients = tape.gradient(combined_loss, trainable_vars)
-        gradients = tape.gradient(distillation_loss, trainable_vars)
+        gradients = tape.gradient(combined_loss, trainable_vars)
+        #gradients = tape.gradient(distillation_loss, trainable_vars)
 
         # Update weights
         self.optimizer.apply_gradients(zip(gradients, trainable_vars))
 
         # Report progress
-        #self.loss_tracker.update_state(combined_loss)
-        self.loss_tracker.update_state(distillation_loss)
+        self.loss_tracker.update_state(combined_loss)
+        #self.loss_tracker.update_state(distillation_loss)
+        return{"combined_loss": self.loss_tracker.result()}
         return {"distillation_loss": self.loss_tracker.result()}
         #return loss
 
@@ -265,6 +273,10 @@ parser.add_argument("-nLayers",dest='nLayers', default=2, type=int, required=Fal
                     help="How many layers for the dnn")
 parser.add_argument("-layerSize",dest='layerSize', default=100, type=int,required=False,
                     help="How large should the layer dense size be for the simple and student model")
+parser.add_argument("-ModelNum", dest='ModelNum', default=0, type=int, required=False,
+                    help="label each model")
+parser.add_argument("-alpha",dest='alpha', default=0.0, type=float, required=False,
+                    help="How much contribution do you want from student training loss of true labels?")
 args = parser.parse_args()
 
 
@@ -304,6 +316,8 @@ if(args.doEarlyStopping):
     num_epoch = 500
 batch_size = args.batchSize
 patience = args.patience
+model_num=args.ModelNum
+alpha_value = args.alpha
 ################################################################################
 
 # load Pythia training data
@@ -329,7 +343,7 @@ else:
 print('Finished preprocessing')
 # do train/val/test split
 (X_pythia_train, X_pythia_val, X_pythia_test,
- Y_pythia_train, Y_pythia_val, Y_pythia_test) = data_split(X_pythia, Y_pythia, val=val_pythia, test=test_pythia)
+ Y_pythia_train, Y_pythia_val, Y_pythia_test) = data_split(X_pythia, Y_pythia, val=val_pythia, test=test_pythia, shuffle=True)
 print('Done pythia train/val/test split')
 
 # load Herwig training data
@@ -355,7 +369,7 @@ else:
 print('Finished preprocessing')
 # do train/val/test split
 (X_herwig_train, X_herwig_val, X_herwig_test,
- Y_herwig_train, Y_herwig_val, Y_herwig_test) = data_split(X_herwig, Y_herwig, val=val_herwig, test=test_herwig)
+ Y_herwig_train, Y_herwig_val, Y_herwig_test) = data_split(X_herwig, Y_herwig, val=val_herwig, test=test_herwig, shuffle=True)
 print('Done herwig train/val/test split')
 
 print('Pythia Shape:',X_pythia.shape)
@@ -365,10 +379,10 @@ print('Herwig Shape:',X_herwig.shape)
 model_save_path = '/users/yzhou276/work/toptag/simple/pfn/model/'
 
 # Load pythia pfn teacher model
-pfn_teacher_pythia = load_model(model_save_path+f'best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia.keras', safe_mode=False)
+pfn_teacher_pythia = load_model(model_save_path+f'best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia_{model_num}.keras', safe_mode=False)
 
 # Load herwig pfn teacher model
-pfn_teacher_herwig = load_model(model_save_path+f'best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig.keras', safe_mode=False)
+pfn_teacher_herwig = load_model(model_save_path+f'best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig_{model_num}.keras', safe_mode=False)
 
 
 ############################################
@@ -388,7 +402,7 @@ distiller_pythia.compile(
     metrics=[tf.keras.metrics.CategoricalCrossentropy()],
     student_loss_fn=tf.keras.losses.CategoricalCrossentropy(),
     distillation_loss_fn=tf.keras.losses.KLDivergence(),
-    alpha=0.5, # was 0.1 but doesn't do anything right now
+    alpha=alpha_value, # was 0.1 but doesn't do anything right now
     temperature=3.0,)
 
 print("Training pythia student:")
@@ -397,14 +411,14 @@ if(args.doEarlyStopping):
     #es_d = EarlyStopping(monitor='val_distillation_loss', mode='min', verbose=1, patience=args.patience)
     es_d = EarlyStopping(monitor='val_categorical_crossentropy', mode='auto', verbose=1, patience=args.patience)
     '''
-    mc_d = ModelCheckpoint(filepath = f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia.keras',
+    mc_d = ModelCheckpoint(filepath = f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia_{alpha_value}alpha_{model_num}.keras',
                            monitor='val_categorical_crossentropy',
                            mode='auto',
                            verbose=1,
                            save_best_only=True,
                            save_format="tf")
     '''
-    mc_d = CustomModelCheckpoint(filepath = f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia.keras',
+    mc_d = CustomModelCheckpoint(filepath = f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia_{alpha_value}alpha_{model_num}.keras',
                                  monitor='val_categorical_crossentropy',
                                  mode='auto',
                                  verbose=1,
@@ -425,7 +439,7 @@ if(args.doEarlyStopping):
 
     #best_weights = ms_d.models[0]
     #dnn_pythia_student.set_weights(best_weights)
-    #dnn_pythia_student.save(f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia.keras')
+    #dnn_pythia_student.save(f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia_{alpha_value}alpha_{model_num}.keras')
 
 else:
     distiller_pythia.fit(X_pythia_train,
@@ -434,7 +448,7 @@ else:
               batch_size=batch_size,
               validation_data=(X_pythia_val, Y_pythia_val),#_for_distiller),
               verbose=1)
-    dnn_pythia_student.save(f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia.keras')
+    dnn_pythia_student.save(f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_pythia_{alpha_value}alpha_{model_num}.keras')
 
 #########################################################################
 
@@ -452,7 +466,7 @@ distiller_herwig.compile(
     metrics=[tf.keras.metrics.CategoricalCrossentropy()],
     student_loss_fn=tf.keras.losses.CategoricalCrossentropy(),
     distillation_loss_fn=tf.keras.losses.KLDivergence(),
-    alpha=0.5, # was 0.1 but doesn't do anything right now
+    alpha=alpha_value, # was 0.1 but doesn't do anything right now
     temperature=3.0,)
 
 print("Training herwig student:")
@@ -461,14 +475,14 @@ if(args.doEarlyStopping):
     #es_d = EarlyStopping(monitor='val_distillation_loss', mode='min', verbose=1, patience=args.patience)
     es_d = EarlyStopping(monitor='val_categorical_crossentropy', mode='auto', verbose=1, patience=args.patience)
     '''
-    mc_d = ModelCheckpoint(filepath = f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig.keras',
+    mc_d = ModelCheckpoint(filepath = f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig_{alpha_value}alpha_{model_num}.keras',
                            monitor='val_categorical_crossentropy',
                            mode='auto',
                            verbose=1,
                            save_best_only=True,
                            save_format="tf")
     '''
-    mc_d = CustomModelCheckpoint(filepath = f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig.keras',
+    mc_d = CustomModelCheckpoint(filepath = f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig_{alpha_value}alpha_{model_num}.keras',
                                  monitor='val_categorical_crossentropy',
                                  mode='auto',
                                  verbose=1,
@@ -489,7 +503,7 @@ if(args.doEarlyStopping):
     
     #best_weights = ms_d.models[0]
     #dnn_herwig_student.set_weights(best_weights)
-    #dnn_herwig_student.save(f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig.keras')
+    #dnn_herwig_student.save(f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig_{alpha_value}alpha_{model_num}.keras')
     
 else:
     distiller_herwig.fit(X_herwig_train,
@@ -498,7 +512,7 @@ else:
                      batch_size=batch_size,
                      validation_data=(X_herwig_val, Y_herwig_val),#_for_distiller),
                      verbose=1)
-    dnn_herwig_student.save(f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig.keras')
+    dnn_herwig_student.save(f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_herwig_{alpha_value}alpha_{model_num}.keras')
 
 #########################################################################
 
@@ -547,7 +561,7 @@ print()
 
 
 ### Pythia Student Pareto ###
-with open(f'/users/yzhou276/work/toptag/student/dnn/auc/best_pythia_dnn_student_nlayers{nLayers}_dense{layerSize}.txt', 'w') as f:
+with open(f'/users/yzhou276/work/toptag/student/dnn/auc/best_pythia_dnn_student_nlayers{nLayers}_dense{layerSize}_{alpha_value}alpha_{model_num}.txt', 'w') as f:
     f.write(f'P8A {auc_pythia_student_pythia}\n')
     f.write(f'H7A {auc_pythia_student_herwig}\n')
     f.write(f'UNC {np.abs(auc_pythia_student_pythia-auc_pythia_student_herwig)/auc_pythia_student_pythia}\n')
@@ -600,7 +614,7 @@ print()
 
 
 ### Herwig Student Pareto ###
-with open(f'/users/yzhou276/work/toptag/student/dnn/auc/best_herwig_dnn_student_nlayers{nLayers}_dense{layerSize}.txt', 'w') as f:
+with open(f'/users/yzhou276/work/toptag/student/dnn/auc/best_herwig_dnn_student_nlayers{nLayers}_dense{layerSize}_{alpha_value}alpha_{model_num}.txt', 'w') as f:
     f.write(f'P8A {auc_herwig_student_pythia}\n')
     f.write(f'H7A {auc_herwig_student_herwig}\n')
     f.write(f'UNC {np.abs(auc_herwig_student_pythia-auc_herwig_student_herwig)/auc_herwig_student_pythia}\n')
