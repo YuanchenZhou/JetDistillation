@@ -128,7 +128,7 @@ else:
 print('Finished preprocessing')
 # do train/val/test split
 (X_pythia_train, X_pythia_val, X_pythia_test,
- Y_pythia_train, Y_pythia_val, Y_pythia_test) = data_split(X_pythia, Y_pythia, val=val_pythia, test=test_pythia, shuffle=True)
+ Y_pythia_train, Y_pythia_val, Y_pythia_test) = data_split(X_pythia, Y_pythia, val=val_pythia, test=test_pythia, shuffle=False)
 print('Done pythia train/val/test split')
 
 # load Herwig training data
@@ -152,7 +152,7 @@ else:
 print('Finished preprocessing')
 # do train/val/test split
 (X_herwig_train, X_herwig_val, X_herwig_test,
- Y_herwig_train, Y_herwig_val, Y_herwig_test) = data_split(X_herwig, Y_herwig, val=val_herwig, test=test_herwig, shuffle=True)
+ Y_herwig_train, Y_herwig_val, Y_herwig_test) = data_split(X_herwig, Y_herwig, val=val_herwig, test=test_herwig, shuffle=False)
 print('Done herwig train/val/test split')
 
 print('Pythia Shape:',X_pythia.shape)
@@ -232,6 +232,19 @@ print()
 print('Pythia/Pythia PFN AUC:', auc_pythia_teacher_pythia)
 print()
 
+plt.figure()
+plt.rcParams['figure.figsize'] = (4,4)
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['figure.autolayout'] = True
+#plt.plot(pfn_tp_pythia_teacher_pythia, 1-pfn_fp_pythia_teacher_pythia, '-', label=f'PFN AUC:{auc_pythia_teacher_pythia}')
+plt.plot(pfn_tp_pythia_teacher_pythia, 1/pfn_fp_pythia_teacher_pythia, '-', label=f'PFN AUC:{auc_pythia_teacher_pythia}')
+plt.xlabel('Top Jet Efficiency')
+plt.ylabel('QCD Jet Rejection')
+plt.xlim(0, 1)
+#plt.ylim(0, 1)
+plt.legend()#loc='lower left', frameon=False)
+plt.savefig(f'/users/yzhou276/work/toptag/simple/pfn/roc_curves/best_pfn_latent{args.latentSize}_phi{args.phiSizes}_{model_num}_PP_ROC.jpg')
+
 
 # get Pythia teacher predictions on herwig test data and ROC curve
 preds_pythia_teacher_herwig = pfn_pythia_teacher.predict(X_herwig_test, batch_size=1000)
@@ -252,6 +265,19 @@ PH_teacher_avg_pred_time = np.mean(pythia_teacher_pred_time_on_herwig)
 print()
 print('Pythia/Herwig PFN AUC:', auc_pythia_teacher_herwig)
 print()
+
+plt.figure()
+plt.rcParams['figure.figsize'] = (4,4)
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['figure.autolayout'] = True
+#plt.plot(pfn_tp_pythia_teacher_herwig, 1-pfn_fp_pythia_teacher_herwig, '-', label=f'PFN AUC:{auc_pythia_teacher_herwig}')
+plt.plot(pfn_tp_pythia_teacher_herwig, 1/pfn_fp_pythia_teacher_herwig, '-', label=f'PFN AUC:{auc_pythia_teacher_herwig}')
+plt.xlabel('Top Jet Efficiency')
+plt.ylabel('QCD Jet Rejection')
+plt.xlim(0, 1)
+#plt.ylim(0, 1)
+plt.legend()#loc='lower left', frameon=False)
+plt.savefig(f'/users/yzhou276/work/toptag/simple/pfn/roc_curves/best_pfn_latent{args.latentSize}_phi{args.phiSizes}_{model_num}_PH_ROC.jpg')
 
 
 ### Pythia Pareto ###
@@ -285,6 +311,19 @@ print()
 print('Herwig/Herwig PFN AUC:', auc_herwig_teacher_herwig)
 print()
 
+plt.figure()
+plt.rcParams['figure.figsize'] = (4,4)
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['figure.autolayout'] = True
+#plt.plot(pfn_tp_herwig_teacher_herwig, 1-pfn_fp_herwig_teacher_herwig, '-', label=f'PFN AUC:{auc_herwig_teacher_herwig}')
+plt.plot(pfn_tp_herwig_teacher_herwig, 1/pfn_fp_herwig_teacher_herwig, '-', label=f'PFN AUC:{auc_herwig_teacher_herwig}')
+plt.xlabel('Top Jet Efficiency')
+plt.ylabel('QCD Jet Rejection')
+plt.xlim(0, 1)
+#plt.ylim(0, 1)
+plt.legend()#loc='lower left', frameon=False)
+plt.savefig(f'/users/yzhou276/work/toptag/simple/pfn/roc_curves/best_pfn_latent{args.latentSize}_phi{args.phiSizes}_{model_num}_HH_ROC.jpg')
+
 
 # get Herwig teacher predictions on pythia test data and ROC curve
 preds_herwig_teacher_pythia = pfn_herwig_teacher.predict(X_pythia_test, batch_size=1000)
@@ -305,6 +344,19 @@ HP_teacher_avg_pred_time = np.mean(herwig_teacher_pred_time_on_pythia)
 print()
 print('Herwig/Pythia PFN AUC:', auc_herwig_teacher_pythia)
 print()
+
+plt.figure()
+plt.rcParams['figure.figsize'] = (4,4)
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['figure.autolayout'] = True
+#plt.plot(pfn_tp_herwig_teacher_pythia, 1-pfn_fp_herwig_teacher_pythia, '-', label=f'PFN AUC:{auc_herwig_teacher_pythia}')
+plt.plot(pfn_tp_herwig_teacher_pythia, 1/pfn_fp_herwig_teacher_pythia, '-', label=f'PFN AUC:{auc_herwig_teacher_pythia}')
+plt.xlabel('Top Jet Efficiency')
+plt.ylabel('QCD Jet Rejection')
+plt.xlim(0, 1)
+#plt.ylim(0, 1)
+plt.legend()#loc='lower left', frameon=False)
+plt.savefig(f'/users/yzhou276/work/qgtag/simple/pfn/roc_curves/best_pfn_latent{args.latentSize}_phi{args.phiSizes}_{model_num}_HP_ROC.jpg')
 
 
 ### Herwig Pareto ###

@@ -145,7 +145,7 @@ else:
 print('Finished preprocessing')
 # do train/val/test split
 (X_pythia_train, X_pythia_val, X_pythia_test,
- Y_pythia_train, Y_pythia_val, Y_pythia_test) = data_split(X_pythia, Y_pythia, val=val_pythia, test=test_pythia, shuffle=True)
+ Y_pythia_train, Y_pythia_val, Y_pythia_test) = data_split(X_pythia, Y_pythia, val=val_pythia, test=test_pythia, shuffle=False)
 print('Done pythia train/val/test split')
 
 # load Herwig training data
@@ -173,7 +173,7 @@ else:
 print('Finished preprocessing')
 # do train/val/test split
 (X_herwig_train, X_herwig_val, X_herwig_test,
- Y_herwig_train, Y_herwig_val, Y_herwig_test) = data_split(X_herwig, Y_herwig, val=val_herwig, test=test_herwig, shuffle=True)
+ Y_herwig_train, Y_herwig_val, Y_herwig_test) = data_split(X_herwig, Y_herwig, val=val_herwig, test=test_herwig, shuffle=False)
 print('Done herwig train/val/test split')
 
 print('Pythia Shape:',X_pythia.shape)
@@ -314,6 +314,19 @@ print()
 print('Pythia/Pythia Simple DNN AUC:', auc_pythia_simple_pythia)
 print()
 
+plt.figure()
+plt.rcParams['figure.figsize'] = (4,4)
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['figure.autolayout'] = True
+#plt.plot(dnn_tp_pythia_simple_pythia, 1-dnn_fp_pythia_simple_pythia, '-', label=f'DNN AUC:{auc_pythia_simple_pythia}')
+plt.plot(dnn_tp_pythia_simple_pythia, 1/dnn_fp_pythia_simple_pythia, '-', label=f'DNN AUC:{auc_pythia_simple_pythia}')
+plt.xlabel('Top Jet Efficiency')
+plt.ylabel('QCD Jet Rejection')
+plt.xlim(0, 1)
+#plt.ylim(0, 1)
+plt.legend()#loc='lower left', frameon=False)
+plt.savefig(f'/users/yzhou276/work/toptag/simple/dnn/roc_curves/best_dnn_nlayers{nLayers}_dense{layerSize}_{model_num}_PP_ROC.jpg')
+
 
 # get Pythia simple predictions on herwig test data and ROC curve
 preds_pythia_simple_herwig = dnn_pythia_simple.predict(X_herwig_test.reshape(-1,X_herwig_val.shape[1]*X_herwig_val.shape[2]), batch_size=1000)
@@ -334,6 +347,19 @@ PH_simple_avg_pred_time = np.mean(pythia_simple_pred_time_on_herwig)
 print()
 print('Pythia/Herwig Simple DNN AUC:', auc_pythia_simple_herwig)
 print()
+
+plt.figure()
+plt.rcParams['figure.figsize'] = (4,4)
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['figure.autolayout'] = True
+#plt.plot(dnn_tp_pythia_simple_herwig, 1-dnn_fp_pythia_simple_herwig, '-', label=f'DNN AUC:{auc_pythia_simple_herwig}')
+plt.plot(dnn_tp_pythia_simple_herwig, 1/dnn_fp_pythia_simple_herwig, '-', label=f'DNN AUC:{auc_pythia_simple_herwig}')
+plt.xlabel('Top Jet Efficiency')
+plt.ylabel('QCD Jet Rejection')
+plt.xlim(0, 1)
+#plt.ylim(0, 1)
+plt.legend()#loc='lower left', frameon=False)
+plt.savefig(f'/users/yzhou276/work/toptag/simple/dnn/roc_curves/best_dnn_nlayers{nLayers}_dense{layerSize}_{model_num}_PH_ROC.jpg')
 
 
 ### Pythia Simple Pareto ###
@@ -366,6 +392,19 @@ print()
 print('Herwig/Herwig Simple DNN AUC:', auc_herwig_simple_herwig)
 print()
 
+plt.figure()
+plt.rcParams['figure.figsize'] = (4,4)
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['figure.autolayout'] = True
+#plt.plot(dnn_tp_herwig_simple_herwig, 1-dnn_fp_herwig_simple_herwig, '-', label=f'DNN AUC:{auc_herwig_simple_herwig}')
+plt.plot(dnn_tp_herwig_simple_herwig, 1/dnn_fp_herwig_simple_herwig, '-', label=f'DNN AUC:{auc_herwig_simple_herwig}')
+plt.xlabel('Top Jet Efficiency')
+plt.ylabel('QCD Jet Rejection')
+plt.xlim(0, 1)
+#plt.ylim(0, 1)
+plt.legend()#loc='lower left', frameon=False)
+plt.savefig(f'/users/yzhou276/work/toptag/simple/dnn/roc_curves/best_dnn_nlayers{nLayers}_dense{layerSize}_{model_num}_HH_ROC.jpg')
+
 
 # get Herwig simple predictions on pythia test data and ROC curve
 preds_herwig_simple_pythia = dnn_herwig_simple.predict(X_pythia_test.reshape(-1,X_pythia_val.shape[1]*X_pythia_val.shape[2]), batch_size=1000)
@@ -386,6 +425,19 @@ HP_simple_avg_pred_time = np.mean(herwig_simple_pred_time_on_pythia)
 print()
 print('Herwig/Pythia Simple DNN AUC:', auc_herwig_simple_pythia)
 print()
+
+plt.figure()
+plt.rcParams['figure.figsize'] = (4,4)
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['figure.autolayout'] = True
+#plt.plot(dnn_tp_herwig_simple_pythia, 1-dnn_fp_herwig_simple_pythia, '-', label=f'DNN AUC:{auc_herwig_simple_pythia}')
+plt.plot(dnn_tp_herwig_simple_pythia, 1/dnn_fp_herwig_simple_pythia, '-', label=f'DNN AUC:{auc_herwig_simple_pythia}')
+plt.xlabel('Top Jet Efficiency')
+plt.ylabel('QCD Jet Rejection')
+plt.xlim(0, 1)
+#plt.ylim(0, 1)
+plt.legend()#loc='lower left', frameon=False)
+plt.savefig(f'/users/yzhou276/work/toptag/simple/dnn/roc_curves/best_dnn_nlayers{nLayers}_dense{layerSize}_{model_num}_HP_ROC.jpg')
 
 
 ### Herwig Simple Pareto ###

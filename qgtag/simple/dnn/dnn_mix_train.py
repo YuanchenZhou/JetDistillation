@@ -83,6 +83,8 @@ parser.add_argument("-layerSize",dest='layerSize', default=100, type=int,require
                     help="How large should the layer dense size be for the simple and student model")
 parser.add_argument("-pythia_ratio",dest='pythia_ratio', default=0.1, type=float,required=False,
                     help="What percentage of pythia dataset")
+parser.add_argument("-ModelNum", dest='ModelNum', default=0, type=int, required=False,
+                    help="label each model")
 args = parser.parse_args()
 
 if(args.nEpochs==0 and args.doEarlyStopping==False):
@@ -116,6 +118,7 @@ if(args.doEarlyStopping):
     num_epoch = 500
 batch_size = args.batchSize
 patience = args.patience
+model_num=args.ModelNum
 ################################################################################
 
 # load Pythia training data
@@ -203,7 +206,7 @@ dnn_mix_simple  = DNN(input_dim=X_mix_train.shape[1]*X_mix_train.shape[2], dense
 # train the simple mix model
 if(args.doEarlyStopping):
     es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=patience)
-    mc = ModelCheckpoint(filepath =f'/users/yzhou276/work/qgtag/simple/dnn/model/best_{dense_sizes}_dnn_mix_{pythia_ratio}Pythia_{herwig_ratio}Herwig.keras', monitor='val_loss', mode='min', verbose=1, save_best_only=True)
+    mc = ModelCheckpoint(filepath =f'/users/yzhou276/work/qgtag/simple/dnn/model/best_{dense_sizes}_dnn_mix_{pythia_ratio}Pythia_{herwig_ratio}Herwig_{model_num}.keras', monitor='val_loss', mode='min', verbose=1, save_best_only=True)
     dnn_mix_simple.fit(X_mix_train.reshape(-1,X_mix_train.shape[1]*X_mix_train.shape[2]), Y_mix_train,
                    epochs=num_epoch,
                    batch_size=batch_size,
@@ -216,7 +219,7 @@ else:
                    batch_size=batch_size,
                    validation_data=(X_mix_val.reshape(-1,X_mix_val.shape[1]*X_mix_val.shape[2]), Y_mix_val),
                    verbose=1)
-    dnn_mix_simple.save(f'/users/yzhou276/work/qgtag/simple/dnn/model/best_{dense_sizes}_dnn_mix_{pythia_ratio}Pythia_{herwig_ratio}Herwig.keras')
+    dnn_mix_simple.save(f'/users/yzhou276/work/qgtag/simple/dnn/model/best_{dense_sizes}_dnn_mix_{pythia_ratio}Pythia_{herwig_ratio}Herwig_{model_num}.keras')
 
 ############################################
 
@@ -265,7 +268,7 @@ print()
 
 
 ### Mix Simple Pareto ###
-with open(f'/users/yzhou276/work/qgtag/simple/dnn/auc/best_mix_dnn_nlayers{nLayers}_dense{layerSize}_{pythia_ratio}Pythia_{herwig_ratio}Herwig.txt', 'w') as f:
+with open(f'/users/yzhou276/work/qgtag/simple/dnn/auc/best_mix_dnn_nlayers{nLayers}_dense{layerSize}_{pythia_ratio}Pythia_{herwig_ratio}Herwig_{model_num}.txt', 'w') as f:
     f.write(f'P8A {auc_mix_simple_pythia}\n')
     f.write(f'H7A {auc_mix_simple_herwig}\n')
     f.write(f'UNC {np.abs(auc_mix_simple_pythia-auc_mix_simple_herwig)/auc_mix_simple_pythia}\n')

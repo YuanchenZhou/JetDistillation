@@ -344,7 +344,7 @@ else:
 print('Finished preprocessing')
 # do train/val/test split
 (X_pythia_train, X_pythia_val, X_pythia_test,
- Y_pythia_train, Y_pythia_val, Y_pythia_test) = data_split(X_pythia, Y_pythia, val=val_pythia, test=test_pythia, shuffle=True)
+ Y_pythia_train, Y_pythia_val, Y_pythia_test) = data_split(X_pythia, Y_pythia, val=val_pythia, test=test_pythia, shuffle=False)
 print('Done pythia train/val/test split')
 
 # load Herwig training data
@@ -370,7 +370,7 @@ else:
 print('Finished preprocessing')
 # do train/val/test split
 (X_herwig_train, X_herwig_val, X_herwig_test,
- Y_herwig_train, Y_herwig_val, Y_herwig_test) = data_split(X_herwig, Y_herwig, val=val_herwig, test=test_herwig, shuffle=True)
+ Y_herwig_train, Y_herwig_val, Y_herwig_test) = data_split(X_herwig, Y_herwig, val=val_herwig, test=test_herwig, shuffle=False)
 print('Done herwig train/val/test split')
 
 print('Pythia Shape:',X_pythia.shape)
@@ -539,6 +539,19 @@ print()
 print('Pythia/Pythia Student DNN AUC:', auc_pythia_student_pythia)
 print()
 
+plt.figure()
+plt.rcParams['figure.figsize'] = (4,4)
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['figure.autolayout'] = True
+#plt.plot(dnn_tp_pythia_student_pythia, 1-dnn_fp_pythia_student_pythia, '-', label=f'DNN AUC:{auc_pythia_student_pythia}')
+plt.plot(dnn_tp_pythia_student_pythia, 1/dnn_fp_pythia_student_pythia, '-', label=f'DNN AUC:{auc_pythia_student_pythia}')
+plt.xlabel('Quark Jet Efficiency')
+plt.ylabel('Gluon Jet Rejection')
+plt.xlim(0, 1)
+#plt.ylim(0, 1)
+plt.legend()#loc='lower left', frameon=False)
+plt.savefig(f'/users/yzhou276/work/qgtag/student/dnn/roc_curves/best_dnn_student_nlayers{nLayers}_dense{layerSize}_{alpha_value}alpha_{model_num}_PP_ROC.jpg')
+
 
 # get Pythia student predictions on herwig test data and ROC curve
 preds_pythia_student_herwig = dnn_pythia_student.predict(X_herwig_test.reshape(-1,X_herwig_val.shape[1]*X_herwig_val.shape[2]), batch_size=1000)
@@ -559,6 +572,19 @@ PH_student_avg_pred_time = np.mean(pythia_student_pred_time_on_herwig)
 print()
 print('Pythia/Herwig Student DNN AUC:', auc_pythia_student_herwig)
 print()
+
+plt.figure()
+plt.rcParams['figure.figsize'] = (4,4)
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['figure.autolayout'] = True
+#plt.plot(dnn_tp_pythia_student_herwig, 1-dnn_fp_pythia_student_herwig, '-', label=f'DNN AUC:{auc_pythia_student_herwig}')
+plt.plot(dnn_tp_pythia_student_herwig, 1/dnn_fp_pythia_student_herwig, '-', label=f'DNN AUC:{auc_pythia_student_herwig}')
+plt.xlabel('Quark Jet Efficiency')
+plt.ylabel('Gluon Jet Rejection')
+plt.xlim(0, 1)
+#plt.ylim(0, 1)
+plt.legend()#loc='lower left', frameon=False)
+plt.savefig(f'/users/yzhou276/work/qgtag/student/dnn/roc_curves/best_dnn_student_nlayers{nLayers}_dense{layerSize}_{alpha_value}alpha_{model_num}_PH_ROC.jpg')
 
 
 ### Pythia Student Pareto ###
@@ -589,8 +615,21 @@ for i in range(6):
 herwig_student_pred_time_on_herwig = np.array(herwig_student_pred_time_on_herwig)
 HH_student_avg_pred_time = np.mean(herwig_student_pred_time_on_herwig)
 print()
-print('Herwig/Herwig Student DNN AUC:', auc_herwig_student_herwig)
+print()#'Herwig/Herwig Student DNN AUC:', auc_herwig_student_herwig)
 print()
+
+plt.figure()
+plt.rcParams['figure.figsize'] = (4,4)
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['figure.autolayout'] = True
+#plt.plot(dnn_tp_herwig_student_herwig, 1-dnn_fp_herwig_student_herwig, '-', label=f'DNN AUC:{auc_herwig_student_herwig}')
+plt.plot(dnn_tp_herwig_student_herwig, 1/dnn_fp_herwig_student_herwig, '-', label=f'DNN AUC:{auc_herwig_student_herwig}')
+plt.xlabel('Quark Jet Efficiency')
+plt.ylabel('Gluon Jet Rejection')
+plt.xlim(0, 1)
+#plt.ylim(0, 1)
+plt.legend()#loc='lower left', frameon=False)
+plt.savefig(f'/users/yzhou276/work/qgtag/student/dnn/roc_curves/best_dnn_student_nlayers{nLayers}_dense{layerSize}_{alpha_value}alpha_{model_num}_HH_ROC.jpg')
 
 
 # get Herwig student predictions on pythia test data and ROC curve
@@ -612,6 +651,19 @@ HP_student_avg_pred_time = np.mean(herwig_student_pred_time_on_pythia)
 print()
 print('Herwig/Pythia Student DNN AUC:', auc_herwig_student_pythia)
 print()
+
+plt.figure()
+plt.rcParams['figure.figsize'] = (4,4)
+plt.rcParams['font.family'] = 'serif'
+plt.rcParams['figure.autolayout'] = True
+#plt.plot(dnn_tp_herwig_student_pythia, 1-dnn_fp_herwig_student_pythia, '-', label=f'DNN AUC:{auc_herwig_student_pythia}')
+plt.plot(dnn_tp_herwig_student_pythia, 1/dnn_fp_herwig_student_pythia, '-', label=f'DNN AUC:{auc_herwig_student_pythia}')
+plt.xlabel('Quark Jet Efficiency')
+plt.ylabel('Gluon Jet Rejection')
+plt.xlim(0, 1)
+#plt.ylim(0, 1)
+plt.legend()#loc='lower left', frameon=False)
+plt.savefig(f'/users/yzhou276/work/qgtag/student/dnn/roc_curves/best_dnn_student_nlayers{nLayers}_dense{layerSize}_{alpha_value}alpha_{model_num}_HP_ROC.jpg')
 
 
 ### Herwig Student Pareto ###

@@ -124,17 +124,18 @@ class Distiller(tf.keras.Model):
         self.temperature = temperature
 
     def train_step(
-        self, x=None, y=None, y_pred=None, sample_weight=None, allow_empty=False
+        self, data, y_pred=None, sample_weight=None, allow_empty=False
     ):
+        x, y = data
         # Forward pass of teacher
         #teacher_predictions = self.teacher.model(x, training=False)
-        teacher_predictions = self.teacher(x[0], training=False)
+        teacher_predictions = self.teacher(x, training=False)
         #student_loss = self.student_loss_fn(y, y_pred)
 
         with tf.GradientTape() as tape:
             # Forward pass of student
 
-            student_predictions = self.student.model(x[0].reshape(-1,X_train.shape[1]*X_train.shape[2]),
+            student_predictions = self.student.model(x.reshape(-1,X_train.shape[1]*X_train.shape[2]),
                                                      training=True)
 
             # Compute loss
@@ -142,6 +143,12 @@ class Distiller(tf.keras.Model):
                 tf.nn.softmax(teacher_predictions / self.temperature, axis=1),
                 tf.nn.softmax(student_predictions / self.temperature, axis=1),
             )
+
+            # Compute student loss
+            student_loss = self.student_loss_fn(y, student_predictions)
+
+            # Compute total loss
+            combined_loss = self.alpha * student_loss + (1 - self.alpha) * distillation_loss
             
         """
         # MLB Note: This kind of combined-loss seems to break things at the moment...
@@ -155,16 +162,17 @@ class Distiller(tf.keras.Model):
 
         # Compute gradients
         trainable_vars = self.student.trainable_variables
-        #gradients = tape.gradient(combined_loss, trainable_vars)
-        gradients = tape.gradient(distillation_loss, trainable_vars)
+        gradients = tape.gradient(combined_loss, trainable_vars)
+        #gradients = tape.gradient(distillation_loss, trainable_vars)
 
         # Update weights
         self.optimizer.apply_gradients(zip(gradients, trainable_vars))
 
         # Report progress
-        #self.loss_tracker.update_state(combined_loss)
-        self.loss_tracker.update_state(distillation_loss)
-        return {"distillation_loss": self.loss_tracker.result()}
+        self.loss_tracker.update_state(combined_loss)
+        #self.loss_tracker.update_state(distillation_loss)
+        return{"combined_loss": self.loss_tracker.result()}
+        #return {"distillation_loss": self.loss_tracker.result()}
         #return loss
 
     def call(self, x):
@@ -265,6 +273,12 @@ parser.add_argument("-nLayers",dest='nLayers', default=2, type=int, required=Fal
                     help="How many layers for the dnn")
 parser.add_argument("-layerSize",dest='layerSize', default=100, type=int,required=False,
                     help="How large should the layer dense size be for the simple and student model")
+parser.add_argument("-alpha",dest='alpha', default=0.0, type=float, required=False,
+                    help="How much contribution do you want from student training loss of true labels?")
+parser.add_argument("-pythia_ratio",dest='pythia_ratio', default=0.1, type=float,required=False,
+                    help="What percentage of pythia dataset")
+parser.add_argument("-ModelNum", dest='ModelNum', default=0, type=int, required=False,
+                    help="label each model")
 args = parser.parse_args()
 
 
@@ -304,6 +318,8 @@ if(args.doEarlyStopping):
     num_epoch = 500
 batch_size = args.batchSize
 patience = args.patience
+alpha_value = args.alpha
+model_num=args.ModelNum
 ################################################################################
 
 # load Pythia training data
@@ -359,16 +375,21 @@ print('Finished preprocessing')
 print('Done herwig train/val/test split')
 
 
-X_mix = np.concatenate((X_pythia,X_herwig), axis=0)
-X_mix_train = np.concatenate((X_pythia_train,X_herwig_train),axis=0)
-X_mix_val = np.concatenate((X_pythia_val,X_herwig_val),axis=0)
-X_mix_test = np.concatenate((X_pythia_test,X_herwig_test),axis=0)
-Y_mix = np.concatenate((Y_pythia,Y_herwig),axis=0)
-Y_mix_train = np.concatenate((Y_pythia_train,Y_herwig_train),axis=0)
-Y_mix_val = np.concatenate((Y_pythia_val,Y_herwig_val),axis=0)
-Y_mix_test = np.concatenate((Y_pythia_test,Y_herwig_test),axis=0)
-print('Done Mixing Pythia and Herwig')
+mix_num = 1000000
+train_mix, val_mix, test_mix = int(mix_num*train_ratio), int(mix_num*val_ratio), int(mix_num*test_ratio)
 
+pythia_ratio = args.pythia_ratio
+herwig_ratio = 1 - pythia_ratio
+
+X_mix = np.concatenate((X_pythia[0:int(mix_num*pythia_ratio)],X_herwig[0:int(mix_num*herwig_ratio)]),axis=0)
+X_mix_train = np.concatenate((X_pythia_train[0:int(train_mix*pythia_ratio)],X_herwig_train[0:int(train_mix*herwig_ratio)]),axis=0)
+X_mix_val = np.concatenate((X_pythia_val[0:int(val_mix*pythia_ratio)],X_herwig_val[0:int(val_mix*herwig_ratio)]),axis=0)
+X_mix_test = np.concatenate((X_pythia_test[0:int(test_mix*pythia_ratio)],X_herwig_test[0:int(test_mix*herwig_ratio)]),axis=0)
+Y_mix = np.concatenate((Y_pythia[0:int(mix_num*pythia_ratio)],Y_herwig[0:int(mix_num*herwig_ratio)]),axis=0)
+Y_mix_train = np.concatenate((Y_pythia_train[0:int(train_mix*pythia_ratio)],Y_herwig_train[0:int(train_mix*herwig_ratio)]),axis=0)
+Y_mix_val = np.concatenate((Y_pythia_val[0:int(val_mix*pythia_ratio)],Y_herwig_val[0:int(val_mix*herwig_ratio)]),axis=0)
+Y_mix_test = np.concatenate((Y_pythia_test[0:int(test_mix*pythia_ratio)],Y_herwig_test[0:int(test_mix*herwig_ratio)]),axis=0)
+print('Done Mixing Pythia and Herwig')
 
 print('Pythia Shape:',X_pythia.shape)
 print('Herwig Shape:',X_herwig.shape)
@@ -380,7 +401,7 @@ print('Mix Shape:', X_mix.shape)
 model_save_path = '/users/yzhou276/work/toptag/simple/pfn/model/'
 
 # Load mix pfn teacher model
-pfn_teacher_mix = load_model(model_save_path+f'best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_mix.keras', safe_mode=False)
+pfn_teacher_mix = load_model(model_save_path+f'best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_mix_{pythia_ratio}Pythia_{herwig_ratio}Herwig_{model_num}.keras', safe_mode=False)
 
 
 ############################################
@@ -400,7 +421,7 @@ distiller_mix.compile(
     metrics=[tf.keras.metrics.CategoricalCrossentropy()],
     student_loss_fn=tf.keras.losses.CategoricalCrossentropy(),
     distillation_loss_fn=tf.keras.losses.KLDivergence(),
-    alpha=0.5, # was 0.1 but doesn't do anything right now
+    alpha=alpha_value, # was 0.1 but doesn't do anything right now
     temperature=3.0,)
 
 print("Training mix student:")
@@ -409,14 +430,14 @@ if(args.doEarlyStopping):
     #es_d = EarlyStopping(monitor='val_distillation_loss', mode='min', verbose=1, patience=args.patience)
     es_d = EarlyStopping(monitor='val_categorical_crossentropy', mode='auto', verbose=1, patience=args.patience)
     '''
-    mc_d = ModelCheckpoint(filepath = f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_mix.keras',
+    mc_d = ModelCheckpoint(filepath = f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_mix_{alpha_value}alpha_{pythia_ratio}Pythia_{herwig_ratio}Herwig_{model_num}.keras',
                            monitor='val_categorical_crossentropy',
                            mode='auto',
                            verbose=1,
                            save_best_only=True,
                            save_format="tf")
     '''
-    mc_d = CustomModelCheckpoint(filepath = f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_mix.keras',
+    mc_d = CustomModelCheckpoint(filepath = f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_mix_{alpha_value}alpha_{pythia_ratio}Pythia_{herwig_ratio}Herwig_{model_num}.keras',
                                  monitor='val_categorical_crossentropy',
                                  mode='auto',
                                  verbose=1,
@@ -437,7 +458,7 @@ if(args.doEarlyStopping):
 
     #best_weights = ms_d.models[0]
     #dnn_mix_student.set_weights(best_weights)
-    #dnn_mix_student.save(f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_mix.keras')
+    #dnn_mix_student.save(f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_mix_{alpha_value}alpha_{pythia_ratio}Pythia_{herwig_ratio}Herwig_{model_num}.keras')
 
 else:
     distiller_mix.fit(X_mix_train,
@@ -446,7 +467,7 @@ else:
               batch_size=batch_size,
               validation_data=(X_mix_val, Y_mix_val),#_for_distiller),
               verbose=1)
-    dnn_mix_student.save(f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_mix.keras')
+    dnn_mix_student.save(f'/users/yzhou276/work/toptag/student/dnn/model/student_{dense_sizes}_dnn_by_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_mix_{alpha_value}alpha_{pythia_ratio}Pythia_{herwig_ratio}Herwig_{model_num}.keras')
 
 #########################################################################
 
@@ -495,7 +516,7 @@ print()
 
 
 ### Mix Student Pareto ###
-with open(f'/users/yzhou276/work/toptag/student/dnn/auc/best_mix_dnn_student_nlayers{nLayers}_dense{layerSize}.txt', 'w') as f:
+with open(f'/users/yzhou276/work/toptag/student/dnn/auc/best_mix_dnn_student_nlayers{nLayers}_dense{layerSize}_{alpha_value}alpha_{pythia_ratio}Pythia_{herwig_ratio}Herwig_{model_num}.txt', 'w') as f:
     f.write(f'P8A {auc_mix_student_pythia}\n')
     f.write(f'H7A {auc_mix_student_herwig}\n')
     f.write(f'UNC {np.abs(auc_mix_student_pythia-auc_mix_student_herwig)/auc_mix_student_pythia}\n')

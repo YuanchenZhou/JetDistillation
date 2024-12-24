@@ -5,8 +5,8 @@ pfn_latent_sizes = [128]
 #pfn_phi_sizes = [50,100,250,500]
 pfn_phi_sizes = [250]
 
-efn_latent_sizes = [1,2,4,8,16,32,64,128,256,512]
-efn_phi_sizes = [50,100,250,500]
+efn_latent_sizes = [4]#[1,2,4,8,16,32,64,128,256,512,1024]
+efn_phi_sizes = [250]#[50,100,250,500]
 
 for l in pfn_latent_sizes:
     for phi in pfn_phi_sizes:
@@ -19,7 +19,7 @@ for l in pfn_latent_sizes:
 
                     run_script.write('#SBATCH -N 1\n')
                     run_script.write('#SBATCH -n 1\n')
-                    run_script.write('#SBATCH --mem=64G\n')
+                    run_script.write('#SBATCH --mem=96G\n')
                     run_script.write('#SBATCH -t 12:00:00\n')
 
                     # https://docs.ccv.brown.edu/oscar/gpu-computing/submit-gpu

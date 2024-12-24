@@ -79,6 +79,8 @@ parser.add_argument("-patience", dest='patience', default=20, type=int, required
                     help="How patient")
 parser.add_argument("-usePIDs", dest='usePIDs', action='store_false', required=False,
                     help="Use PIDs? If True, this script will currently break!")
+parser.add_argument("-ModelNum", dest='ModelNum', default=0, type=int, required=False,
+                    help="label each model")
 args = parser.parse_args()
 
 ################################################################################
@@ -102,6 +104,7 @@ if(args.doEarlyStopping):
     num_epoch = 500
 batch_size = args.batchSize
 patience = args.patience
+model_num=args.ModelNum
 ################################################################################
 
 # load Pythia training data
@@ -158,16 +161,21 @@ print('Finished preprocessing')
 print('Done herwig train/val/test split')
 
 
-X_mix = np.concatenate((X_pythia,X_herwig), axis=0)
-X_mix_train = np.concatenate((X_pythia_train,X_herwig_train),axis=0)
-X_mix_val = np.concatenate((X_pythia_val,X_herwig_val),axis=0)
-X_mix_test = np.concatenate((X_pythia_test,X_herwig_test),axis=0)
-Y_mix = np.concatenate((Y_pythia,Y_herwig),axis=0)
-Y_mix_train = np.concatenate((Y_pythia_train,Y_herwig_train),axis=0)
-Y_mix_val = np.concatenate((Y_pythia_val,Y_herwig_val),axis=0)
-Y_mix_test = np.concatenate((Y_pythia_test,Y_herwig_test),axis=0)
-print('Done Mixing Pythia and Herwig')
+mix_num = 1500000
+train_mix, val_mix, test_mix = int(mix_num*train_ratio), int(mix_num*val_ratio), int(mix_num*test_ratio)
 
+pythia_ratio = 0.5
+herwig_ratio = 1 - pythia_ratio
+
+X_mix = np.concatenate((X_pythia[0:int(mix_num*pythia_ratio)],X_herwig[0:int(mix_num*herwig_ratio)]),axis=0)
+X_mix_train = np.concatenate((X_pythia_train[0:int(train_mix*pythia_ratio)],X_herwig_train[0:int(train_mix*herwig_ratio)]),axis=0)
+X_mix_val = np.concatenate((X_pythia_val[0:int(val_mix*pythia_ratio)],X_herwig_val[0:int(val_mix*herwig_ratio)]),axis=0)
+X_mix_test = np.concatenate((X_pythia_test[0:int(test_mix*pythia_ratio)],X_herwig_test[0:int(test_mix*herwig_ratio)]),axis=0)
+Y_mix = np.concatenate((Y_pythia[0:int(mix_num*pythia_ratio)],Y_herwig[0:int(mix_num*herwig_ratio)]),axis=0)
+Y_mix_train = np.concatenate((Y_pythia_train[0:int(train_mix*pythia_ratio)],Y_herwig_train[0:int(train_mix*herwig_ratio)]),axis=0)
+Y_mix_val = np.concatenate((Y_pythia_val[0:int(val_mix*pythia_ratio)],Y_herwig_val[0:int(val_mix*herwig_ratio)]),axis=0)
+Y_mix_test = np.concatenate((Y_pythia_test[0:int(test_mix*pythia_ratio)],Y_herwig_test[0:int(test_mix*herwig_ratio)]),axis=0)
+print('Done Mixing Pythia and Herwig')
 
 print('Pythia Shape:',X_pythia.shape)
 print('Herwig Shape:',X_herwig.shape)
@@ -183,7 +191,7 @@ pfn_mix_teacher = PFN(input_dim=X_pythia.shape[-1], Phi_sizes=Phi_sizes_teacher,
 if(args.doEarlyStopping):
     from keras.callbacks import EarlyStopping,ModelCheckpoint
     es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=patience)
-    mc = ModelCheckpoint(filepath =f'/users/yzhou276/work/toptag/simple/pfn/model/best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_mix.keras', monitor='val_loss', mode='min', verbose=1, save_best_only=True)
+    mc = ModelCheckpoint(filepath =f'/users/yzhou276/work/toptag/simple/pfn/model/best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_mix_{pythia_ratio}Pythia_{herwig_ratio}Herwig_{model_num}.keras', monitor='val_loss', mode='min', verbose=1, save_best_only=True)
     print("Training mix teacher:")
     pfn_mix_teacher.fit(X_mix_train, Y_mix_train,
                     epochs=num_epoch,
@@ -198,7 +206,7 @@ else:
                     batch_size=batch_size,
                     validation_data=(X_mix_val, Y_mix_val),
                     verbose=1)
-    pfn_mix_teacher.save(f'/users/yzhou276/work/toptag/simple/pfn/model/best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_mix.keras')
+    pfn_mix_teacher.save(f'/users/yzhou276/work/toptag/simple/pfn/model/best_{Phi_sizes_teacher}_{F_sizes_teacher}_pfn_mix_{pythia_ratio}Pythia_{herwig_ratio}Herwig_{model_num}.keras')
 
 
 ####################
@@ -248,7 +256,7 @@ print()
 
 
 ### Mix Pareto ###
-with open(f'/users/yzhou276/work/toptag/simple/pfn/auc/best_mix_pfn_latent{args.latentSize}_phi{args.phiSizes}.txt', 'w') as f:
+with open(f'/users/yzhou276/work/toptag/simple/pfn/auc/best_mix_pfn_latent{args.latentSize}_phi{args.phiSizes}_{pythia_ratio}Pythia_{herwig_ratio}Herwig_{model_num}.txt', 'w') as f:
     f.write(f'P8A {auc_mix_teacher_pythia}\n')
     f.write(f'H7A {auc_mix_teacher_herwig}\n')
     f.write(f'UNC {np.abs(auc_mix_teacher_pythia-auc_mix_teacher_herwig)/auc_mix_teacher_pythia}\n')

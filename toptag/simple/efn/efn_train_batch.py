@@ -1,8 +1,8 @@
 import os
 
 
-efn_latent_sizes = [1,2,4,8,16,32,64,128,256,512]
-efn_phi_sizes = [50,100,250,500]
+efn_latent_sizes = [2,8]#[1,2,4,8,16,32,64,128,256,512,1024]
+efn_phi_sizes = [250]#[50,100,250,500]
 
 
 for n in efn_latent_sizes:

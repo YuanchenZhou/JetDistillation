@@ -8,6 +8,9 @@ pfn_phi_sizes = [250]
 nlayers = [2]#[2,3,4,5,10]
 dense_sizes = [100]#[1,10,25,50,100,200,300,500]
 
+pythia_ratio = 0.5
+alpha_value = 0.0
+
 for i in range(10):
     for l in pfn_latent_sizes:
         for phi in pfn_phi_sizes:
@@ -32,7 +35,7 @@ for i in range(10):
 
                         run_script.write('source /users/yzhou276/work/qgtag/qg/bin/activate\n\n')
 
-                        cmd =  'python3 dnn_avg_multi_distill.py '
+                        cmd =  'python3 dnn_mix_distill.py '
                         cmd += '-nEpochs=200 '
                         cmd += '-batchSize=500 '
                         cmd += '-latentSize='+str(l)+' '
@@ -42,6 +45,8 @@ for i in range(10):
                         cmd += '-usePIDs '
                         cmd += '-nLayers='+str(n)+' '
                         cmd += '-layerSize='+str(d)+' '
+                        cmd += '-alpha='+str(alpha_value)+' '
+                        cmd += '-pythia_ratio='+str(pythia_ratio)+' '
                         cmd += '-ModelNum='+str(i)+' '
 
                         print(cmd)
